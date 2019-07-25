@@ -111,7 +111,12 @@
           center: [-117.195, 34.057],
           zoom: 14
         });
+        var searchWidget = new Search({view: view});
 
+        view.ui.add(searchWidget, {
+            position: "top-left",
+            index: 2
+        });
         function Stop(earlyArrival, lateArrival, minTime, maxTime, preference){
           this.earlyArrival = earlyArrival;
           this.lateArrival = lateArrival;
@@ -199,12 +204,7 @@
           prev_route = routeResult;
         }
 
-        var searchWidget = new Search({view: view});
 
-        view.ui.add(searchWidget, {
-            position: "top-left",
-            index: 2
-        });
 
       });
     </script>
