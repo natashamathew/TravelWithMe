@@ -151,20 +151,51 @@
   //         searchProperties:{
   //           suggestionsEnabled:true
   //         },
-           viewModel: { // autocasts as new DirectionsViewModel
+        //  SearchViewModel:
+        //  {
+
+      //    }
+          ViewModel:
+          { // autocasts as new DirectionsViewModel
             routeParameters: routeParams,
             view: view,
-           routeServiceUrl:
+            routeServiceUrl:
             "https://utility.arcgis.com/usrsvcs/appservices/a6bR1egUty1q6MmN/rest/services/World/Route/NAServer/Route_World"
       //     stops:
-     }//
+          }//
         });
-
+        directionsWidget.getDirections;
+        var routeParamsSearch = new RouteParameters({
+          stops: new FeatureSet(),
+          outSpatialReference: {
+            // autocasts as new SpatialReference()
+            wkid: 3857
+          }
+        });
+        routeParamsSearch .findBestSequence = true;
+        routeParamsSearch .preserveFirstStop = false;
+        routeParamsSearch .preserveLastStop = false;
+        routeParamsSearch .returnStops = true;
 // Add the Directions widget to the top right corner of the view
       view.ui.add(directionsWidget, {
           position: "top-right"
         });
 
+        function addStopfromSerach(event) {
+          // Add a point at the location of the map click
+          var stop = new Graphic({
+            geometry: event.mapPoint,
+            symbol: stopSymbol
+          });
+        //  routeLayer.add(stop);
+          // Execute the route task if 2 or more stops are input
+          routeParamsSearch.stops.features.push(directionsWidget.searchProperties.SearchViewModel.results);
+
+         if (routeParams.stops.features.length >= 2) {
+           routeTask.solve(routeParams).then(showRoute);
+         }
+        }
+        routeTask.solve(routeParamsSearch).then(showRoute);
       });
     </script>
   </head>
