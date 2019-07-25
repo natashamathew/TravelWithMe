@@ -21,7 +21,6 @@
         height: 100%;
         width: 100%;
       }
-
       #paneDiv {
         position: absolute;
         top: 10px;
@@ -60,31 +59,33 @@
         FeatureSet,
         Search
       ) {
-        // Point the URL to a valid route service that uses an
-        // ArcGIS Online hosted service proxy
+
+
+        // Creating the Basic Routing Functions
         var routeTask = new RouteTask({
           url:
            "https://utility.arcgis.com/usrsvcs/appservices/a6bR1egUty1q6MmN/rest/services/World/Route/NAServer/Route_World"
         });
-
         // The stops and route result will be stored in this layer
         var routeLayer = new GraphicsLayer();
-
         // Setup the route parameters
         var routeParams = new RouteParameters({
           stops: new FeatureSet(),
           outSpatialReference: {
             // autocasts as new SpatialReference()
             wkid: 3857
-
           }
         });
         routeParams.findBestSequence = true;
-        routeParams.preserveFirstStop = false;
-        routeParams.preserveLastStop = false;
+        routeParams.preserveFirstStop = true;
+        routeParams.preserveLastStop = true;
         routeParams.returnStops = true;
 
-        // Define the symbology used to display the stops
+
+
+
+
+        // Create the Symbologies on Map
         var stopSymbol = {
           type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
           style: "cross",
@@ -94,14 +95,12 @@
             width: 4
           }
         };
-
         // Define the symbology used to display the route
         var routeSymbol = {
           type: "simple-line", // autocasts as SimpleLineSymbol()
           color: [0, 0, 255, 0.5],
           width: 5
         };
-
         var map = new Map({
           basemap: "streets",
           layers: [routeLayer] // Add the route layer to the map
@@ -113,7 +112,23 @@
           zoom: 14
         });
 
-        // Adds a graphic when the user clicks the map. If 2 or more points exist, route is solved.
+        function Stop(earlyArrival, lateArrival, minTime, maxTime, preference){
+          this.earlyArrival = earlyArrival;
+          this.lateArrival = lateArrival;
+          this.minTime = minTime;
+          this.maxTime = maxTime;
+          this.preference = preference;
+        }
+
+
+
+        // Creating Routing Functions
+        var firstStop, lastStop;
+        var arrStop = [];
+
+
+
+
         view.on("click", addStop);
 
         function addStop(event) {
@@ -123,15 +138,55 @@
             symbol: stopSymbol
           });
           routeLayer.add(stop);
-          // Execute the route task if 2 or more stops are input
-          routeParams.stops.features.push(stop);
 
-         if (routeParams.stops.features.length >= 2) {
-           routeTask.solve(routeParams).then(showRoute);
-         }
+          if (firstStop == null) {
+            firstStop = stop;
+          } else if (lastStop == null) {
+            lastStop = stop;
+          } else {
+            arrStop.push(lastStop);
+            lastStop = stop
+          }
+          if (firstStop != null && lastStop!= null) {
+            solveRoute();
+          }
         }
-        // Adds the solved route to the map as a graphic
-        routeTask.solve(routeParams).then(showRoute);
+
+        function removeStop(stop) {
+          routeLayer.remove(stop);
+
+          if (stop == firstStop) {
+            if (arrStop.length == 0 && lastStop == null) {
+              firstStop = null;
+            } else if (arrStop.length == 0) {
+              firstStop = lastStop;
+              lastStop = null;
+            } else {
+              firstStop = arrStop.shift();
+            }
+          } else if (stop == lastStop) {
+            lastStop = arrStop.pop();
+          } else {
+            for (var i = 0; i < arrStop.length; i++) {
+              if (arrStop[i] == stop) {
+                arrStop.splice(i,1);
+              }
+            }
+          }
+        }
+
+
+        function solveRoute() {
+          //first clear routeParams so no stops
+          routeParams.stops.features = [];
+            routeParams.stops.features.push(firstStop);
+            for (var i = 0; i < arrStop.length; i++) {
+              routeParams.stops.features.push(arrStop[i]);
+            }
+            routeParams.stops.features.push(lastStop);
+
+            routeTask.solve(routeParams).then(showRoute);
+        }
 
         var prev_route;
         function showRoute(data) {
@@ -144,59 +199,14 @@
           prev_route = routeResult;
         }
 
-        var directionsWidget = new Directions({
-          view: view,
-        routeServiceUrl:"https://utility.arcgis.com/usrsvcs/appservices/a6bR1egUty1q6MmN/rest/services/World/Route/NAServer/Route_World",
-           //searchProperties: searchP,
-  //         searchProperties:{
-  //           suggestionsEnabled:true
-  //         },
-        //  SearchViewModel:
-        //  {
+        var searchWidget = new Search({view: view});
 
-      //    }
-          ViewModel:
-          { // autocasts as new DirectionsViewModel
-            routeParameters: routeParams,
-            view: view,
-            routeServiceUrl:
-            "https://utility.arcgis.com/usrsvcs/appservices/a6bR1egUty1q6MmN/rest/services/World/Route/NAServer/Route_World"
-      //     stops:
-          }//
-        });
-        directionsWidget.getDirections;
-        var routeParamsSearch = new RouteParameters({
-          stops: new FeatureSet(),
-          outSpatialReference: {
-            // autocasts as new SpatialReference()
-            wkid: 3857
-          }
-        });
-        routeParamsSearch .findBestSequence = true;
-        routeParamsSearch .preserveFirstStop = false;
-        routeParamsSearch .preserveLastStop = false;
-        routeParamsSearch .returnStops = true;
-// Add the Directions widget to the top right corner of the view
-      view.ui.add(directionsWidget, {
-          position: "top-right"
+        view.ui.add(searchWidget, {
+            position: "top-left",
+            index: 2
         });
 
-        function addStopfromSerach(event) {
-          // Add a point at the location of the map click
-          var stop = new Graphic({
-            geometry: event.mapPoint,
-            symbol: stopSymbol
-          });
-        //  routeLayer.add(stop);
-          // Execute the route task if 2 or more stops are input
-          routeParamsSearch.stops.features.push(directionsWidget.searchProperties.SearchViewModel.results);
-
-         if (routeParams.stops.features.length >= 2) {
-           routeTask.solve(routeParams).then(showRoute);
-         }
-        }
-        routeTask.solve(routeParamsSearch).then(showRoute);
-      6});
+      });
     </script>
   </head>
   <body>
@@ -204,10 +214,6 @@
     <div id="paneDiv" class="esri-widget">
       <div>
         <p>
-          Click on the map to add stops to the route. The route from the last
-          stop to the newly added stop is calculated. If a stop is not
-          reachable, it is removed and the last valid point is set as the
-          starting point.
         </p>
       </div>
     </div>
