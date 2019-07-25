@@ -47,7 +47,8 @@
         "esri/tasks/RouteTask",
         "esri/widgets/Directions",
         "esri/tasks/support/RouteParameters",
-        "esri/tasks/support/FeatureSet"
+        "esri/tasks/support/FeatureSet",
+         "esri/widgets/Search"
       ], function(
         Map,
         MapView,
@@ -56,7 +57,8 @@
         RouteTask,
         Directions,
         RouteParameters,
-        FeatureSet
+        FeatureSet,
+        Search
       ) {
         // Point the URL to a valid route service that uses an
         // ArcGIS Online hosted service proxy
@@ -144,10 +146,18 @@
 
         var directionsWidget = new Directions({
           view: view,
-  // Point the URL to a valid route service that uses an
-  // ArcGIS Online hosted service proxy instead of the default service
-        routeServiceUrl:
-        "https://utility.arcgis.com/usrsvcs/appservices/a6bR1egUty1q6MmN/rest/services/World/Route/NAServer/Route_World"
+        routeServiceUrl:"https://utility.arcgis.com/usrsvcs/appservices/a6bR1egUty1q6MmN/rest/services/World/Route/NAServer/Route_World",
+           //searchProperties: searchP,
+  //         searchProperties:{
+  //           suggestionsEnabled:true
+  //         },
+           viewModel: { // autocasts as new DirectionsViewModel
+            routeParameters: routeParams,
+            view: view,
+           routeServiceUrl:
+            "https://utility.arcgis.com/usrsvcs/appservices/a6bR1egUty1q6MmN/rest/services/World/Route/NAServer/Route_World"
+      //     stops:
+     }//
         });
 
 // Add the Directions widget to the top right corner of the view
