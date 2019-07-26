@@ -78,6 +78,13 @@
         routeParams.preserveFirstStop = true;
         routeParams.preserveLastStop = true;
         routeParams.returnStops = true;
+        routeParams.returnDirections = true;
+
+
+
+
+
+
 
 
 
@@ -85,29 +92,57 @@
 
         // Create the Symbologies on Map
         var stopSymbol = {
-          type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
+          type: "simple-marker",
           style: "cross",
           size: 15,
           outline: {
-            // autocasts as new SimpleLineSymbol()
             width: 4
           }
         };
-        // Define the symbology used to display the route
         var routeSymbol = {
-          type: "simple-line", // autocasts as SimpleLineSymbol()
+          type: "simple-line",
           color: [0, 0, 255, 0.5],
           width: 5
         };
         var map = new Map({
           basemap: "streets",
-          layers: [routeLayer] // Add the route layer to the map
+          layers: [routeLayer]
         });
         var view = new MapView({
-          container: "viewDiv", // Reference to the scene div created in step 5
-          map: map, // Reference to the map object created before the scene
+          container: "viewDiv",
+          map: map,
           center: [-117.195, 34.057],
           zoom: 14
+        });
+
+        var addButton={
+          title:"add stop",
+          id:"add stop",
+        }
+
+        const editThisAction = {
+          title: "Edit feature",
+          id: "edit-this",
+          className: "esri-icon-edit"
+        };
+
+
+        var searchWidget = new Search({
+          view: view,
+          popupTemplate:{
+          title:"Location",
+          actions:[
+              {
+                id:"add stop",
+                title:"Add Stop"
+              }
+            ]
+          }
+        });
+
+        view.ui.add(searchWidget, {
+            position: "top-right",
+            index: 2
         });
 
         function Stop(earlyArrival, lateArrival, minTime, maxTime, preference){
@@ -120,23 +155,88 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
         // Creating Routing Functions
         var firstStop, lastStop;
         var arrStop = [];
+        var counter = 0;
 
+        function addStop(stopPoint) {
 
+          var stop = stopPoint.feature;
 
+          stop.popupTemplate = {
+          title:"Location",
+          content: [
+            {
+              type: "fields",
+              fieldInfos: [
+                {
+                  fieldName: "Earliest Arrival"
+                },
+                {
+                  fieldName: "Latest Arrival",
+                },
+                {
+                  fieldName: "Minimum Time"
+                },
+                {
+                  fieldName: "Maximum Time"
+                },
+                {
+                  fieldName: "Preference (1-10)"
+                }
+              ]
+            }
+          ],
+          actions:[
+              {
+                id:"delete stop",
+                title:"Delete Stop"
+              }, editThisAction
+            ]
+          };
 
-        view.on("click", addStop);
+          //Assigns color to each stop
+          if (firstStop == null) {
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "green"
+              };
+          } else if (lastStop == null) {
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          } else {
+            lastStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 10,
+              color: "black"
+              };
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          }
 
-        function addStop(event) {
-          // Add a point at the location of the map click
-          var stop = new Graphic({
-            geometry: event.mapPoint,
-            symbol: stopSymbol
-          });
+          //reassigns firstStop, lastStop, arrStop
           routeLayer.add(stop);
-
           if (firstStop == null) {
             firstStop = stop;
           } else if (lastStop == null) {
@@ -150,9 +250,11 @@
           }
         }
 
+
+
+
         function removeStop(stop) {
           routeLayer.remove(stop);
-
           if (stop == firstStop) {
             if (arrStop.length == 0 && lastStop == null) {
               firstStop = null;
@@ -171,6 +273,28 @@
               }
             }
           }
+
+          if (firstStop != null) {
+            firstStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "green"
+              };
+          }
+
+          if (lastStop != null) {
+            lastStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          }
+
+          if (firstStop != null && lastStop!= null) {
+            solveRoute();
+          } else {
+            routeLayer.remove(prev_route);
+          }
         }
 
 
@@ -182,10 +306,8 @@
               routeParams.stops.features.push(arrStop[i]);
             }
             routeParams.stops.features.push(lastStop);
-
             routeTask.solve(routeParams).then(showRoute);
         }
-
         var prev_route;
         function showRoute(data) {
           var routeResult = data.routeResults[0].route;
@@ -199,6 +321,29 @@
 
 
 
+
+
+
+
+
+
+
+        view.popup.on("trigger-action", function(event)
+        {
+
+             if (event.action.id == "add stop")
+             {
+               addStop(searchWidget.selectedResult);
+             }
+             if (event.action.id == "delete stop")
+             {
+               console.log(view, event);
+               removeStop(view.popup.selectedFeature);
+             }
+             if (event.action.id === "edit-this") {
+               editThis();
+             }
+        });
       });
     </script>
   </head>
