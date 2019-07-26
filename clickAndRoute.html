@@ -118,7 +118,7 @@
           view: view,
           popupTemplate:{
            // title:"template",
-            actions:[
+          actions:[
               {
                 id:"add stop",
                 title:"add stop"
@@ -127,14 +127,13 @@
           }
         });
         
-       // searchWidget.popupTemplate.actions.push(addButton);
 
        view.popup.on("trigger-action", function(event) 
        {
   
-            if (event.action.id === "add stop") 
-            {
-              addStop(event);
+            if (event.action.id == "add stop") 
+            {        
+              addStop(searchWidget.selectedResult);
             }
        });
         view.ui.add(searchWidget, {
@@ -155,11 +154,8 @@
         var firstStop, lastStop;
         var arrStop = [];
        
-          function addStop(event) {
-          var stop = new Graphic({
-            geometry: event.mapPoint,
-            symbol: stopSymbol
-          });
+          function addStop(stopPoint) {
+          var stop = stopPoint.feature;
           routeLayer.add(stop);
 
           if (firstStop == null) {
