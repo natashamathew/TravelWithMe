@@ -47,7 +47,8 @@
         "esri/widgets/Directions",
         "esri/tasks/support/RouteParameters",
         "esri/tasks/support/FeatureSet",
-         "esri/widgets/Search"
+         "esri/widgets/Search",
+         "esri/support/actions/ActionButton"
       ], function(
         Map,
         MapView,
@@ -57,7 +58,8 @@
         Directions,
         RouteParameters,
         FeatureSet,
-        Search
+        Search,
+        ActionButton
       ) {
 
 
@@ -80,10 +82,6 @@
         routeParams.preserveFirstStop = true;
         routeParams.preserveLastStop = true;
         routeParams.returnStops = true;
-
-
-
-
 
         // Create the Symbologies on Map
         var stopSymbol = {
@@ -111,12 +109,40 @@
           center: [-117.195, 34.057],
           zoom: 14
         });
-        var searchWidget = new Search({view: view});
+        
+        var addButton={
+          title:"add stop",
+          id:"add stop",
+        }
+        var searchWidget = new Search({
+          view: view,
+          popupTemplate:{
+           // title:"template",
+            actions:[
+              {
+                id:"add stop",
+                title:"add stop"
+              }
+            ]
+          }
+        });
+        
+       // searchWidget.popupTemplate.actions.push(addButton);
 
+       view.popup.on("trigger-action", function(event) 
+       {
+  
+            if (event.action.id === "add stop") 
+            {
+              addStop(event);
+            }
+       });
         view.ui.add(searchWidget, {
             position: "top-left",
             index: 2
         });
+     
+
         function Stop(earlyArrival, lateArrival, minTime, maxTime, preference){
           this.earlyArrival = earlyArrival;
           this.lateArrival = lateArrival;
@@ -125,19 +151,11 @@
           this.preference = preference;
         }
 
-
-
         // Creating Routing Functions
         var firstStop, lastStop;
         var arrStop = [];
-
-
-
-
-        view.on("click", addStop);
-
-        function addStop(event) {
-          // Add a point at the location of the map click
+       
+          function addStop(event) {
           var stop = new Graphic({
             geometry: event.mapPoint,
             symbol: stopSymbol
