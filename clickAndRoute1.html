@@ -132,32 +132,30 @@
           title:"add stop",
           id:"add stop",
         }
+
+        let editor, features;
+
+const editThisAction = {
+  title: "Edit feature",
+  id: "edit-this",
+  className: "esri-icon-edit"
+};
         var searchWidget = new Search({
           view: view,
           popupTemplate:
           {
            // title:"template",
             actions:
-          
               [
                 {
                   id:"add stop",
                   title:"add stop"
                 }
-              ]
-            //    [editThisAction]
-            
+              ]   
           }
         });
         
-        let editor, features;
-
-        const editThisAction = {
-          title: "Edit feature",
-          id: "edit-this",
-          className: "esri-icon-edit"
-        };
-
+        searchWidget.popupTemplate.actions.push(editThisAction);
         //remove the current pop up and enable an editor
         function editThis() {
             // If the EditorViewModel's activeWorkflow is null, make the popup not visible
