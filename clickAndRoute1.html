@@ -101,6 +101,7 @@
         routeParams.preserveFirstStop = true;
         routeParams.preserveLastStop = true;
         routeParams.returnStops = true;
+        routeParams.useTimeWindows = true;
 
         // Create the Symbologies on Map
         var stopSymbol = {
@@ -148,10 +149,10 @@
         className: "esri-icon-edit"
       };
         var searchWidget = new Search({
+         // title:
           view: view,
           popupTemplate:
-          {
-           // title:"template",
+          {          
             actions:
               [
                 {
@@ -160,8 +161,7 @@
                 }
               ]   
           }
-        });
-        
+        });      
         searchWidget.popupTemplate.actions.push(editThisStopAction);
         //remove the current pop up and enable an editor
         function editThis() {
@@ -224,6 +224,8 @@
           function editThisStop() {
             // If the EditorViewModel's activeWorkflow is null, make the popup not visible
             if (!editor.viewModel.activeWorkFlow) {
+              routeFLayer=new FeatureLayer(routeLayer);
+              //routeFLayer.capabilities.operations.supportsEditing;
               view.popup.visible = false;
               /*{
                 geometry: point,
@@ -245,7 +247,25 @@
               }*/
               //var thisFeature = new Graphic
               //();
-              editor.startUpdateWorkflowAtFeatureEdit(view.popup.selectedFeature);
+             // map.featureLayer
+             stopEditor = new Editor({
+                view: view,
+                container: document.createElement("div"),
+                layerInfos: [
+                {
+                  layer: routeFLayer,
+                  fieldConfig: [
+                  {
+                    name: "cat2",
+                    label: "cat2",
+                    editable: true
+                  }
+                 
+                  ]
+                }
+            ] 
+            });
+              stopEditor.startUpdateWorkflowAtFeatureEdit(searchWidget.selectedResult.feature);
               view.ui.add(editor, "bottom-left");
               view.popup.spinnerEnabled = false;
             }
@@ -292,6 +312,7 @@
             }
             else if (event.action.id==="edit-this-stop")
             {
+              var routeFLayer = new FeatureLayer(routeLayer);
               editThisStop();
             }
        });
@@ -304,20 +325,7 @@
 
 
         // Create a popupTemplate for the featurelayer and pass in a function to set its content and specify an action to handle editing the selected feature
-   //     const template = {
-     //     title: "Trail name: {trailName}",
-        //  content: difficultyLevel,
-         // fieldInfos: [
-      //      {
-         //     fieldName: "trailName"
-         //   },
-         //   {
-         //     fieldName: "difficulty"
-        //    }
-         // ],
-      //    actions: [editThisAction]
-      //  };
-
+      
         // Function that creates two popup elements for the template: attachments and text
         function difficultyLevel(feature) {
           // 1. Set how the attachments should display within the popup
@@ -325,31 +333,13 @@
       //      displayType: "list"
        //   });
 
-          const textElement = new TextContent();
+       const textElement = new TextContent();
 
-          const level = feature.graphic.attributes.difficulty;
-          const green =
-            "<b><span style='color:green'>" + level + "</span></b>.";
-          const purple =
-            "<b><span style='color:purple'>" + level + "</span></b>.";
-          const red = "<b><span style='color:red'>" + level + "</span></b>.";
+      const level = feature.graphic.attributes.cat2;
 
-          switch (level) {
-            case "easy":
-              textElement.text =
-                "The {trailName} trail has a difficulty level of " + green;
-              return [textElement, attachmentsElement];
-              break;
-            case "medium":
-              textElement.text =
-                "The {trailName} trail has a difficulty level of " + purple;
-              return [textElement, attachmentsElement];
-              break;
-            case "hard":
-              textElement.text =
-                "The {trailName} trail has a difficulty level of " + red;
-              return [textElement, attachmentsElement];
-          }
+      textElement.text="category is " + level;
+
+          
         }
 
 
@@ -678,6 +668,20 @@
           view.ui.remove(editor);
 
           // Iterate through the features
+          const template = {
+          title: "Trail name: {trailName}",
+          content: difficultyLevel,
+          fieldInfos: [
+          {
+              fieldName: "trailName"
+          }
+         //   {
+         //     fieldName: "difficulty"
+        //    }
+          ],
+          actions: [editThisAction]
+        };
+
           features.forEach(function(feature) {
             // Reset the template for the feature if it was edited
             feature.popupTemplate = template;
@@ -783,6 +787,7 @@
   </head>
   <body>
     <div id="viewDiv"></div>
+    <div id="info" class="esri-widget"></div>
     <div id="paneDiv" class="esri-widget">
         <h3>Where would you like to go? </h3>
         <input type="radio" name="filter" value="noFilter" checked /> No filter<br />
