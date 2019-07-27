@@ -12,6 +12,11 @@
   https://developers.arcgis.com/javascript/latest/sample-code/tasks-route/index.html
   -->
 <title>RouteTask - 4.12</title>
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.12/esri/themes/light/main.css"
+    />
+    <script src="https://js.arcgis.com/4.12/"></script>
     <style>
       html,
       body,
@@ -29,6 +34,7 @@
         background-color: rgba(0, 0, 0, 0.5);
         color: white;
       }
+      
     </style>
 
     <link
@@ -51,7 +57,10 @@
          "esri/support/actions/ActionButton",
          "esri/layers/FeatureLayer",
         "esri/widgets/Bookmarks",
-        "esri/webmap/Bookmark"
+        "esri/webmap/Bookmark",
+        "esri/widgets/Editor",
+        "esri/popup/content/AttachmentsContent",
+        "esri/popup/content/TextContent"
       ], function(
         Map,
         MapView,
@@ -65,7 +74,10 @@
         ActionButton,
         FeatureLayer, 
         Bookmarks, 
-        Bookmark
+        Bookmark,
+        Editor,
+        AttachmentsContent,
+        TextContent
       ) {
         const category = document.getElementById("category").text;
 
@@ -122,17 +134,87 @@
         }
         var searchWidget = new Search({
           view: view,
-          popupTemplate:{
+          popupTemplate:
+          {
            // title:"template",
-          actions:[
-              {
-                id:"add stop",
-                title:"add stop"
-              }
-            ]
+            actions:
+          
+              [
+                {
+                  id:"add stop",
+                  title:"add stop"
+                }
+              ]
+            //    [editThisAction]
+            
           }
         });
         
+        let editor, features;
+
+        const editThisAction = {
+          title: "Edit feature",
+          id: "edit-this",
+          className: "esri-icon-edit"
+        };
+
+        //remove the current pop up and enable an editor
+        function editThis() {
+            // If the EditorViewModel's activeWorkflow is null, make the popup not visible
+            if (!editor.viewModel.activeWorkFlow) {
+              view.popup.visible = false;
+              /*{
+                geometry: point,
+                longitude: view.popup.selectedFeature.longitude,
+                latitude: view.popup.selectedFeature.latitude,
+                attributes: 
+                {
+                  "name": "",
+               //   "family": "Pinaceae",
+               //   "count": 126
+                },
+                symbol: new SimpleMarkerSymbol
+                ({
+                  style: "square",
+                  color: "blue",
+                  size: "8px"
+                })
+
+              }*/
+              //var thisFeature = new Graphic
+              //();
+              editor.startUpdateWorkflowAtFeatureEdit(view.popup.selectedFeature);
+              view.ui.add(editor, "bottom-left");
+              view.popup.spinnerEnabled = false;
+            }
+
+            // We need to set a timeout to ensure the editor widget is fully rendered. We
+            // then grab it from the DOM stack
+            setTimeout(function() {
+
+              // Use the editor's back button as a way to cancel out of editing
+              let arrComp = editor.domNode.getElementsByClassName(
+                "esri-editor__back-button esri-interactive"
+              
+             );
+             
+              if (arrComp.length === 1) {
+                arrComp[0].setAttribute(
+                  "title",
+                  "Cancel edits, return to popup"
+                );
+                // Add a listerner to listen for when the editor's back button is clicked
+                arrComp[0].addEventListener("click", function(evt) {
+                  // Prevent the default behavior for the back button and instead remove the editor and reopen the popup
+                  evt.preventDefault();
+                  view.ui.remove(editor);
+                  view.popup.open({
+                    features: features
+                  });
+                });
+              }
+            }, 150);
+          }
 
        view.popup.on("trigger-action", function(event) 
        {
@@ -141,12 +223,69 @@
             {        
               addStop(searchWidget.selectedResult);
             }
+            else if (event.action.id === "edit-this") 
+            {
+              editThis();
+            }
        });
         view.ui.add(searchWidget, {
-            position: "top-right",
+            position: "bottom-right",
             index: 2
         });
      
+
+
+
+        // Create a popupTemplate for the featurelayer and pass in a function to set its content and specify an action to handle editing the selected feature
+   //     const template = {
+     //     title: "Trail name: {trailName}",
+        //  content: difficultyLevel,
+         // fieldInfos: [
+      //      {
+         //     fieldName: "trailName"
+         //   },
+         //   {
+         //     fieldName: "difficulty"
+        //    }
+         // ],
+      //    actions: [editThisAction]
+      //  };
+
+        // Function that creates two popup elements for the template: attachments and text
+        function difficultyLevel(feature) {
+          // 1. Set how the attachments should display within the popup
+      //    const attachmentsElement = new AttachmentsContent({
+      //      displayType: "list"
+       //   });
+
+          const textElement = new TextContent();
+
+          const level = feature.graphic.attributes.difficulty;
+          const green =
+            "<b><span style='color:green'>" + level + "</span></b>.";
+          const purple =
+            "<b><span style='color:purple'>" + level + "</span></b>.";
+          const red = "<b><span style='color:red'>" + level + "</span></b>.";
+
+          switch (level) {
+            case "easy":
+              textElement.text =
+                "The {trailName} trail has a difficulty level of " + green;
+              return [textElement, attachmentsElement];
+              break;
+            case "medium":
+              textElement.text =
+                "The {trailName} trail has a difficulty level of " + purple;
+              return [textElement, attachmentsElement];
+              break;
+            case "hard":
+              textElement.text =
+                "The {trailName} trail has a difficulty level of " + red;
+              return [textElement, attachmentsElement];
+          }
+        }
+
+
 
         const symbolCats = [
           "post-office",
@@ -212,8 +351,9 @@
         };
         const featureLayer = new FeatureLayer({
           url:
-            "http://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/LA_County_Points_of_Interest/FeatureServer/0",
+            "https://services.arcgis.com/Wl7Y1m92PbjtJs5n/arcgis/rest/services/LA_County_Points_of_Interest/FeatureServer",
           renderer: renderer,
+          outFields: ["*"],
           popupTemplate: {
             title: "{Name}",
             content: [
@@ -242,7 +382,8 @@
                   }
                 ]
               }
-            ]
+            ],
+            actions: [editThisAction]
           }
         });
 
@@ -296,9 +437,6 @@
      //   view.ui.add(bookmarks, {
      //     position: "top-right"
      //   });
-
-
-
 
 
         function Stop(earlyArrival, lateArrival, minTime, maxTime, preference){
@@ -378,7 +516,7 @@
         }
 
         
-        const playFilter = [
+        /*const playFilter = [
           // show only points that represent vegetation
           {
             type: "value",
@@ -399,9 +537,9 @@
             mode: "include",
             values: ["Education"]
           }
-        ];
+        ];*/
         
-        view.when(function() {
+        /*view.when(function() {
           //const pcLayer = map.layers.getItemAt(0);
           const pcLayer = map.findLayerById(0);
           const radios = document.getElementsByName("filter");
@@ -421,89 +559,159 @@
               }
             });
           }
+        });*/
+
+       /* view.ui.add(playFilter, {
+          position: "bottom-right"
+        }); */
+
+
+        view.when(function() {
+          // Create the Editor with the specified layer and a list of field configurations
+          editor = new Editor({
+            view: view,
+            container: document.createElement("div"),
+            layerInfos: [
+              {
+                layer: featureLayer,
+                fieldConfig: [
+                  {
+                    name: "cat2",
+                    label: "cat2",
+                    editable: true
+                  }
+                 
+                ]
+              }
+            ]
+          });
+
+         
+          // Event handler that fires each time an action is clicked
+     //     view.popup.on("trigger-action", function(event) {
+    //        if (event.action.id === "edit-this") {
+    //          editThis();
+     //       }
+     //     });
         });
 
-        view.ui.add(playFilter, {
-          position: "bottom-right"
-        }); 
+        // Watch when the popup is visible
+        view.popup.watch("visible", function(event) {
+          // Check the Editor's viewModel state, if it is currently open and editing existing features, disable popups
+          if (editor.viewModel.state === "editing-existing-feature") {
+            view.popup.close();
+          } else {
+            // Grab the features of the popup
+            features = view.popup.features;
+          }
+        });
+
+        featureLayer.on("apply-edits", function() {
+          // Once edits are applied to the layer, remove the Editor from the UI
+          view.ui.remove(editor);
+
+          // Iterate through the features
+          features.forEach(function(feature) {
+            // Reset the template for the feature if it was edited
+            feature.popupTemplate = template;
+          });
+
+          // Open the popup again and reset its content after updates were made on the feature
+          if (features) {
+            view.popup.open({
+              features: features
+            });
+          }
+
+          // Cancel the workflow so that once edits are applied, a new popup can be displayed
+          editor.viewModel.cancelWorkflow();
+        });
+
+        view.ui.add("info", {
+          position: "bottom-left",
+          index: 1
+        });
+
+
+
       });
     </script>
     <script type="text/plain" id="category">
      // if($feature.cat2 == "UPS Locations" || $feature.cat2 == "USPS Mail Collection Boxes" || $feature.cat2 == "DHL Locations" || $feature.cat2 == "Federal Express Locations"){
      //   return "post-office"
     //  }
-      if($feature.cat2=="Banking and Finance"){
-        return "atm"
-      }
-      else if($feature.cat2 == "Churches"){
-        return "place-of-worship"
-      }
-      else if($feature.cat2 == "Parks and Gardens"){
-        return "park"
-      }
+ //     if($feature.cat2=="Banking and Finance"){
+ //       return "atm"
+ //     }
+ //     else if($feature.cat2 == "Churches"){
+ //       return "place-of-worship"
+  //    }
+ //     else if($feature.cat2 == "Parks and Gardens"){
+ //       return "park"
+ //     }
     //  else if($feature.cat1 == "Education"){
    //     return "school"
     //  }
-      /* else if($feature.cat2 == "Mental Health Centers" ||$feature.cat2 == "Medicare and Medicaid Offices"|| $feature.cat2 == "Mental Health Counseling" || $feature.cat2== "Dental Care" || $feature.cat2 == "Health Clinics" || $feature.cat2== "Health Centers" || $feature.cat2 == "Health Education and Counseling" || $feature.cat2== "Health Screening and Testing" || $feature.cat2== "Hospitals and Medical Centers"){
-        return "hospital"
-      }
-     else if($feature.cat2 == "Fire Stations"){
-        return "fire-station"
-      }
-      else if($feature.cat2 == "Recreation Centers" || $feature.cat2 == "Recreation Programs" || $feature.cat2 == "Park and Ride Locations"){
-        return "playground"
-      }
-      else if($feature.cat2 == "Shopping Centers" || $feature.cat2=="Thrift Shops"){
+  //     if($feature.cat2 == "Mental Health Centers" ||$feature.cat2 == "Medicare and Medicaid Offices"|| $feature.cat2 == "Mental Health Counseling" || $feature.cat2== "Dental Care" || $feature.cat2 == "Health Clinics" || $feature.cat2== "Health Centers" || $feature.cat2 == "Health Education and Counseling" || $feature.cat2== "Health Screening and Testing" || $feature.cat2== "Hospitals and Medical Centers"){
+  //      return "hospital"
+ //     }
+ //    else if($feature.cat2 == "Fire Stations"){
+ //       return "fire-station"
+ //     }
+ //     else if($feature.cat2 == "Recreation Centers" || $feature.cat2 == "Recreation Programs" || $feature.cat2 == "Park and Ride Locations"){
+  //      return "playground"
+  //    }
+      if($feature.cat2 == "Shopping Centers" || $feature.cat2=="Thrift Shops"){
         return "shopping-center"
       }
-      else if($feature.cat2 == "Campgrounds"){
-        return "campground"
-      }
-      else if($feature.cat2 == "Golf Courses"){
-        return "golf-course"
-      }
-      else if($feature.cat2 == "Libraries"){
-        return "library"
-      }
-      else if($feature.cat2 == "City Halls"|| $feature.cat2 == "Government Offices" || $feature.cat2 =="County Offices" || $feature.cat2 =="Probation Offices" || $feature.cat2 =="Social Security Administration"){
-        return "city-hall"
-      }
+ //     else if($feature.cat2 == "Campgrounds"){
+ //       return "campground"
+//      }
+ //     else if($feature.cat2 == "Golf Courses"){
+//        return "golf-course"
+ //     }
+  //    else if($feature.cat2 == "Libraries"){
+ //       return "library"
+ //     }
+ //     else if($feature.cat2 == "City Halls"|| $feature.cat2 == "Government Offices" || $feature.cat2 =="County Offices" || $feature.cat2 =="Probation Offices" || $feature.cat2 =="Social Security Administration"){
+  //      return "city-hall"
+ //     }
       else if($feature.cat2 == "Beaches and Marinas"){
         return "beach"
       }
-      else if($feature.cat2 == "Sheriff and Police Stations"){
-        return "police-station"
-      }
-      else if($feature.cat2 == "Metro Stations"){
+ //     else if($feature.cat2 == "Sheriff and Police Stations"){
+ //       return "police-station"
+ //     }
+     /* else if($feature.cat2 == "Metro Stations"){
         return "subway-station"
       }
       else if($feature.cat2 == "Metrolink Stations" || $feature.cat2 == "Amtrak Stations"){
         return "train-station"
-      }
-      else if($feature.cat2 == "Cemeteries"){
-        return "cemetery"
-      }
-      else if($feature.cat2 == "Trails"){
-        return "trail"
-      }
-      else if($feature.cat2 == "Microwave Towers" || $feature.cat2 =="Cellular Towers"){
-        return "radio-tower"
-      }
+      }*/
+ //     else if($feature.cat2 == "Cemeteries"){
+ //       return "cemetery"
+  //    }
+  //    else if($feature.cat2 == "Trails"){
+ //       return "trail"
+  //    }
+ //     else if($feature.cat2 == "Microwave Towers" || $feature.cat2 =="Cellular Towers"){
+ //       return "radio-tower"
+//      }
       else if($feature.cat2 == "Museums and Aquariums"){
         return "museum"
       }
-      else if($feature.cat2 == "Airport"){
-        return "airport"
-      }
+  //    else if($feature.cat2 == "Airport"){
+ //       return "airport"
+ //     }
       else if($feature.cat2 == "Cultural and Performing Arts Centers"){
         return "live-music-venue"
       }
-      else if($feature.cat2 == "Sports Venues"){
-        return "sports-complex"
-      }
-      else if($feature.cat2 == "Ferries"){
-        return "ferry"
-      }*/
+ //     else if($feature.cat2 == "Sports Venues"){
+  //      return "sports-complex"
+ //     }
+ //     else if($feature.cat2 == "Ferries"){
+ //       return "ferry"
+  //    }
     </script>
   </head>
   <body>
