@@ -29,6 +29,7 @@
         background-color: rgba(0, 0, 0, 0.5);
         color: white;
       }
+
     </style>
 
     <link
@@ -47,7 +48,11 @@
         "esri/widgets/Directions",
         "esri/tasks/support/RouteParameters",
         "esri/tasks/support/FeatureSet",
-         "esri/widgets/Search"
+         "esri/widgets/Search",
+         "esri/views/SceneView",
+         "esri/WebScene",
+         "esri/webscene/Slide",
+         "@dojo/framework/shim/array"
       ], function(
         Map,
         MapView,
@@ -57,7 +62,11 @@
         Directions,
         RouteParameters,
         FeatureSet,
-        Search
+        Search,
+        Sceneview,
+        WebScene,
+        Slide,
+        Array
       ) {
         // Creating the Basic Routing Functions
         var routeTask = new RouteTask({
@@ -79,6 +88,7 @@
         routeParams.preserveLastStop = true;
         routeParams.returnStops = true;
         routeParams.returnDirections = true;
+        routeParams.directionsOutputType = "complete";
 
 
 
@@ -144,6 +154,13 @@
             position: "top-right",
             index: 2
         });
+
+        /*
+        view.ui.add([searchWidget, "createSlideDiv", "slidesDiv"], {
+            position: "top-right",
+            index: 2
+        });
+        */
 
         function Stop(earlyArrival, lateArrival, minTime, maxTime, preference){
           this.earlyArrival = earlyArrival;
@@ -297,6 +314,10 @@
           }
         }
 
+        function popupDirections(directions, times, lengths, totalLength, totalTime) {
+
+        }
+
 
         function solveRoute() {
           //first clear routeParams so no stops
@@ -310,13 +331,29 @@
         }
         var prev_route;
         function showRoute(data) {
-          var routeResult = data.routeResults[0].route;
-          routeResult.symbol = routeSymbol;
+          var routeresult = data.routeResults[0].route;
+          routeresult.symbol = routeSymbol;
           if (prev_route != null) {
             routeLayer.remove(prev_route);
           }
-          routeLayer.add(routeResult);
-          prev_route = routeResult;
+          routeLayer.add(routeresult);
+          prev_route = routeresult;
+
+          var directions = [];
+          var times = [];
+          var lengths = [];
+          var totalLength;
+          var totalTime;
+
+          for (var i = 0; i < data.routeResults[0].directions.features.length; i++) {
+            directions.push(data.routeResults[0].directions.features[i].attributes.text);
+            times.push(data.routeResults[0].directions.features[i].attributes.time);
+            lengths.push(data.routeResults[0].directions.features[i].attributes.length);
+          }
+          totalLength = data.routeResults[0].directions.totalLength;
+          totalTime = data.routeResults[0].directions.totalDriveTime;
+
+          popupDirections(directions, times, lengths, totalLength, totalTime);
         }
 
 
