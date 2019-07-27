@@ -30,6 +30,38 @@
         color: white;
       }
 
+      #slidesDiv {
+        background-color: white;
+        opacity: 0.9;
+        color: black;
+        padding: 10px;
+        visibility: hidden;
+        bottom: 20px;
+        overflow-y: auto;
+        text-align: center;
+        height: 260px;
+        width: 240px;
+      }
+
+      #slidesDiv .slide {
+        /* Show cursor as pointer when on a slide */
+        cursor: pointer;
+        margin-bottom: 6px;
+      }
+
+      #slidesDiv .slide .title {
+        /* Center the title text */
+        text-align: center;
+      }
+      /* Draw active slide with a nice border around the thumbnail */
+
+      #slidesDiv .slide.active img {
+        box-shadow: 0px 0px 12px black;
+        border-style: solid;
+        border-width: thin;
+        border-color: black;
+      }
+
     </style>
 
     <link
@@ -63,7 +95,7 @@
         RouteParameters,
         FeatureSet,
         Search,
-        Sceneview,
+        SceneView,
         WebScene,
         Slide,
         Array
@@ -114,15 +146,28 @@
           color: [0, 0, 255, 0.5],
           width: 5
         };
+        /*
         var map = new Map({
           basemap: "streets",
           layers: [routeLayer]
+        });*/
+        var scene = new WebScene({
+          portalItem: { // autocasts as new PortalItem()
+          id: "344bad711fca46ab89b3bfb46263de0b"  // ID of the WebScene on arcgis.com
+          },
+          layers: [routeLayer]
         });
-        var view = new MapView({
+        /*
+        var view = new SceneView({
           container: "viewDiv",
-          map: map,
+          map: scene,
           center: [-117.195, 34.057],
           zoom: 14
+        });
+        */
+        var view = new SceneView({
+          map: scene,
+          container: "viewDiv"
         });
 
         var addButton={
@@ -150,17 +195,13 @@
           }
         });
 
-        view.ui.add(searchWidget, {
-            position: "top-right",
-            index: 2
-        });
 
-        /*
-        view.ui.add([searchWidget, "createSlideDiv", "slidesDiv"], {
+        view.ui.add([searchWidget, "slidesDiv"], {
             position: "top-right",
             index: 2
         });
-        */
+        document.getElementById("slidesDiv").style.visibility = "visible";
+
 
         function Stop(earlyArrival, lateArrival, minTime, maxTime, preference){
           this.earlyArrival = earlyArrival;
@@ -171,6 +212,47 @@
         }
 
 
+
+
+
+
+
+
+
+
+
+        function createSlideUI(slide) {
+                  var slideElement = document.createElement("div");
+                  slideElement.id = slide.id;
+                  slideElement.classList.add("slide");
+
+                  var slidesDiv = document.getElementById("slidesDiv");
+                  slidesDiv.appendChild(slideElement);
+
+                  var title = document.createElement("div");
+                  title.innerText = slide.title.text;
+                  slideElement.appendChild(title);
+
+                  var img = new Image();
+                  img.src = slide.thumbnail.url;
+                  img.title = slide.title.text;
+                  slideElement.appendChild(img);
+
+                  slideElement.addEventListener("click", function() {
+                    var slides = document.querySelectorAll(".slide");
+                    Array.from(slides).forEach(function(node) {
+                      node.classList.remove("active");
+                    });
+                    slideElement.classList.add("active");
+                    slide.applyTo(view);
+                  });
+                }
+
+
+        function deleteSlideUI(slide) {
+          var slidesDiv = document.getElementById("slidesDiv");
+          slidesDiv.removeChild(document.getElementById(slide.id));
+        }
 
 
 
@@ -191,11 +273,11 @@
         var counter = 0;
 
         function addStop(stopPoint) {
-
+          counter += 1;
           var stop = stopPoint.feature;
 
           stop.popupTemplate = {
-          title:"Location",
+          title: counter.toString(),
           content: [
             {
               type: "fields",
@@ -262,6 +344,17 @@
             arrStop.push(lastStop);
             lastStop = stop
           }
+
+          //Create Slide
+          Slide.createFrom(view).then(function(slide) {
+                scene.presentation.slides.add(slide);
+                slide.title.text = counter.toString();
+                slide.id = counter.toString();
+                createSlideUI(slide);
+              });
+
+
+
           if (firstStop != null && lastStop!= null) {
             solveRoute();
           }
@@ -307,16 +400,27 @@
               };
           }
 
+          //Delete Slide
+          for (var i = 0; i < scene.presentation.slides.items.length; i++) {
+            if (scene.presentation.slides.items[i].id == stop.popupTemplate.title) {
+              var slide = scene.presentation.slides.items[i];
+              scene.presentation.slides.remove(slide);
+              deleteSlideUI(slide);
+            }
+          }
+
+
           if (firstStop != null && lastStop!= null) {
             solveRoute();
           } else {
             routeLayer.remove(prev_route);
           }
         }
-
+/*
         function popupDirections(directions, times, lengths, totalLength, totalTime) {
 
         }
+        */
 
 
         function solveRoute() {
@@ -353,7 +457,7 @@
           totalLength = data.routeResults[0].directions.totalLength;
           totalTime = data.routeResults[0].directions.totalDriveTime;
 
-          popupDirections(directions, times, lengths, totalLength, totalTime);
+          //popupDirections(directions, times, lengths, totalLength, totalTime);
         }
 
 
@@ -374,7 +478,7 @@
              }
              if (event.action.id == "delete stop")
              {
-               console.log(view, event);
+               //console.log(view, event);
                removeStop(view.popup.selectedFeature);
              }
              if (event.action.id === "edit-this") {
@@ -392,6 +496,7 @@
         </p>
       </div>
     </div>
+    <div id="slidesDiv" class="esri-widget"></div>
   </body>
 
 </html>
