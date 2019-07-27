@@ -88,6 +88,7 @@
         });
         // The stops and route result will be stored in this layer
         var routeLayer = new GraphicsLayer();
+        
         // Setup the route parameters
         var routeParams = new RouteParameters({
           stops: new FeatureSet(),
@@ -220,6 +221,7 @@ const editThisAction = {
             if (event.action.id == "add stop") 
             {        
               addStop(searchWidget.selectedResult);
+              var routeFLayer = new FeatureLayer(routeLayer);
             }
             else if (event.action.id === "edit-this") 
             {
