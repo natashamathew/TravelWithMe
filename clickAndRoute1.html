@@ -136,11 +136,17 @@
 
         let editor, features;
 
-const editThisAction = {
-  title: "Edit feature",
-  id: "edit-this",
-  className: "esri-icon-edit"
-};
+      const editThisAction = {
+      title: "Edit feature",
+      id: "edit-this",
+      className: "esri-icon-edit"
+    };
+
+      const editThisStopAction = {
+        title: "Edit stop",
+        id: "edit-this-stop",
+        className: "esri-icon-edit"
+      };
         var searchWidget = new Search({
           view: view,
           popupTemplate:
@@ -156,9 +162,66 @@ const editThisAction = {
           }
         });
         
-        searchWidget.popupTemplate.actions.push(editThisAction);
+        searchWidget.popupTemplate.actions.push(editThisStopAction);
         //remove the current pop up and enable an editor
         function editThis() {
+            // If the EditorViewModel's activeWorkflow is null, make the popup not visible
+            if (!editor.viewModel.activeWorkFlow) {
+              view.popup.visible = false;
+              /*{
+                geometry: point,
+                longitude: view.popup.selectedFeature.longitude,
+                latitude: view.popup.selectedFeature.latitude,
+                attributes: 
+                {
+                  "name": "",
+               //   "family": "Pinaceae",
+               //   "count": 126
+                },
+                symbol: new SimpleMarkerSymbol
+                ({
+                  style: "square",
+                  color: "blue",
+                  size: "8px"
+                })
+
+              }*/
+              //var thisFeature = new Graphic
+              //();
+              editor.startUpdateWorkflowAtFeatureEdit(view.popup.selectedFeature);
+              view.ui.add(editor, "bottom-left");
+              view.popup.spinnerEnabled = false;
+            }
+
+            // We need to set a timeout to ensure the editor widget is fully rendered. We
+            // then grab it from the DOM stack
+            setTimeout(function() {
+
+              // Use the editor's back button as a way to cancel out of editing
+              let arrComp = editor.domNode.getElementsByClassName(
+                "esri-editor__back-button esri-interactive"
+              
+             );
+             
+              if (arrComp.length === 1) {
+                arrComp[0].setAttribute(
+                  "title",
+                  "Cancel edits, return to popup"
+                );
+                // Add a listerner to listen for when the editor's back button is clicked
+                arrComp[0].addEventListener("click", function(evt) {
+                  // Prevent the default behavior for the back button and instead remove the editor and reopen the popup
+                  evt.preventDefault();
+                  view.ui.remove(editor);
+                  view.popup.open({
+                    features: features
+                  });
+                });
+              }
+            }, 150);
+          }
+
+          function editThisStop() {
             // If the EditorViewModel's activeWorkflow is null, make the popup not visible
             if (!editor.viewModel.activeWorkFlow) {
               view.popup.visible = false;
@@ -226,6 +289,10 @@ const editThisAction = {
             else if (event.action.id === "edit-this") 
             {
               editThis();
+            }
+            else if (event.action.id==="edit-this-stop")
+            {
+              editThisStop();
             }
        });
         view.ui.add(searchWidget, {
