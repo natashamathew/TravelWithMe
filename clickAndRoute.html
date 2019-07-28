@@ -20,6 +20,7 @@
         margin: 0;
         height: 100%;
         width: 100%;
+        z-index: 1;
       }
       #paneDiv {
         position: absolute;
@@ -62,6 +63,23 @@
         border-color: black;
       }
 
+      #directDiv {
+        background-color: white;
+        opacity: 0.9;
+        color: black;
+        padding: 10px;
+        visibility: visible;
+        bottom: 20px;
+        overflow-y: auto;
+        text-align: center;
+        height: 260px;
+        width: 220px;
+        z-index: 0;
+      }
+
+
+
+
     </style>
 
     <link
@@ -84,7 +102,7 @@
          "esri/views/SceneView",
          "esri/WebScene",
          "esri/webscene/Slide",
-         "@dojo/framework/shim/array"
+         "@dojo/framework/shim/array",
       ], function(
         Map,
         MapView,
@@ -181,11 +199,12 @@
           className: "esri-icon-edit"
         };
 
+        var address = "test location";
 
         var searchWidget = new Search({
           view: view,
           popupTemplate:{
-          title:"Location",
+          title: "hi",
           actions:[
               {
                 id:"add stop",
@@ -195,8 +214,17 @@
           }
         });
 
+        searchWidget.on("select-result", function(event){
+          searchWidget.popupTemplate.title = event.result.name;
+          address = event.result.name;
+        });
 
-        view.ui.add([searchWidget, "slidesDiv"], {
+
+        //searchWidget.popupTemplate.title = searchWidget.selectedResult.name;
+
+
+
+        view.ui.add([searchWidget, "slidesDiv", "directDiv"], {
             position: "top-right",
             index: 2
         });
@@ -254,6 +282,50 @@
           slidesDiv.removeChild(document.getElementById(slide.id));
         }
 
+        var directDiv = document.getElementById("directDiv");
+        var welcome = document.createElement("div");
+        welcome.innerText = "Your Directions Will Show Up Here";
+        directDiv.appendChild(welcome);
+
+        function createDirectionUI(directions, times, lengths, totalLength, totalTime) {
+          var directDiv = document.getElementById("directDiv");
+          var subs = document.createElement("div");
+          var hours = Math.floor(totalTime/60);
+          var minutes = (Math.round((totalTime%60)*10)/10);
+          subs.innerText = "Total Length: " + (Math.round(totalLength*100)/100) + " miles";
+          directDiv.appendChild(subs);
+          var subs1 = document.createElement("div");
+          subs1.innerText = "Total Time: " + hours + " hours " + minutes + " min";
+          directDiv.appendChild(subs1);
+
+          for (var i = 0; i < directions.length; i++) {
+            var subs = document.createElement("div");
+            subs.innerText = "--------------------";
+            directDiv.appendChild(subs);
+            if (times[i] == 0) {
+              var direction = document.createElement("div");
+              direction.innerText = directions[i];
+              directDiv.appendChild(direction);
+            } else {
+              var direction = document.createElement("div");
+              direction.innerText = directions[i];
+              var tim = document.createElement("div");
+              tim.innerText = "Time: " + (Math.round(times[i]*100)/100) + " min";
+              var dist = document.createElement("div");
+              dist.innerText = "Dist: " + (Math.round(lengths[i]*100)/100) + "miles";
+              directDiv.appendChild(direction);
+              directDiv.appendChild(tim);
+              directDiv.appendChild(dist);
+            }
+          }
+        }
+
+
+        function deleteDirectionUI() {
+          var directDiv = document.getElementById("directDiv");
+          directDiv.textContent = '';
+        }
+
 
 
 
@@ -273,11 +345,10 @@
         var counter = 0;
 
         function addStop(stopPoint) {
-          counter += 1;
           var stop = stopPoint.feature;
 
           stop.popupTemplate = {
-          title: counter.toString(),
+          title: address,
           content: [
             {
               type: "fields",
@@ -348,8 +419,8 @@
           //Create Slide
           Slide.createFrom(view).then(function(slide) {
                 scene.presentation.slides.add(slide);
-                slide.title.text = counter.toString();
-                slide.id = counter.toString();
+                slide.title.text = address;
+                slide.id = address;
                 createSlideUI(slide);
               });
 
@@ -433,6 +504,7 @@
             routeParams.stops.features.push(lastStop);
             routeTask.solve(routeParams).then(showRoute);
         }
+
         var prev_route;
         function showRoute(data) {
           var routeresult = data.routeResults[0].route;
@@ -457,7 +529,8 @@
           totalLength = data.routeResults[0].directions.totalLength;
           totalTime = data.routeResults[0].directions.totalDriveTime;
 
-          //popupDirections(directions, times, lengths, totalLength, totalTime);
+          deleteDirectionUI();
+          createDirectionUI(directions, times, lengths, totalLength, totalTime);
         }
 
 
@@ -482,9 +555,20 @@
                removeStop(view.popup.selectedFeature);
              }
              if (event.action.id === "edit-this") {
-               editThis();
+               //editThis();
              }
         });
+
+        /*
+        const input = document.querySelector('#myInput');
+        event.addEventListener('keyup',function(e){
+          if (e.keyCode === 13) {
+            alert('hi');
+          }
+        });
+        */
+
+
       });
     </script>
   </head>
@@ -497,6 +581,7 @@
       </div>
     </div>
     <div id="slidesDiv" class="esri-widget"></div>
+    <div id="directDiv"></div>
   </body>
 
 </html>
