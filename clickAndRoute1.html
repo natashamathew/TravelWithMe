@@ -102,6 +102,11 @@
         routeParams.preserveLastStop = true;
         routeParams.returnStops = true;
         routeParams.useTimeWindows = true;
+        routeParams.returnRoutes = true;
+        routeParams.returnStops=true;
+      //  RouteParams.returnDirections=true;
+        //routeParams.startTime=10;
+        
 
         // Create the Symbologies on Map
         var stopSymbol = {
@@ -560,10 +565,12 @@
 
             routeTask.solve(routeParams).then(showRoute);
         }
-
+        showRoute;
         var prev_route;
         function showRoute(data) {
           var routeResult = data.routeResults[0].route;
+          //routeresults.route;
+         // routeresults.stops;
           routeResult.symbol = routeSymbol;
           if (prev_route != null) {
             routeLayer.remove(prev_route);
