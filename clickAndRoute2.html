@@ -1,0 +1,483 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <!--
+  ArcGIS API for JavaScript, https://js.arcgis.com
+  For more information about the tasks-
+ sample, read the original sample description at developers.arcgis.com.
+  https://developers.arcgis.com/javascript/latest/sample-code/tasks-route/index.html
+  -->
+<title>RouteTask - 4.12</title>
+    <style>
+      html,
+      body,
+      #viewDiv {
+        padding: 0;
+        margin: 0;
+        height: 100%;
+        width: 100%;
+        z-index: 1;
+      }
+      #paneDiv {
+        position: absolute;
+        top: 10px;
+        left: 62px;
+        padding: 0 12px 0 12px;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+      }
+      #slidesDiv {
+        background-color: white;
+        opacity: 0.9;
+        color: black;
+        padding: 10px;
+        visibility: hidden;
+        bottom: 20px;
+        overflow-y: auto;
+        text-align: center;
+        height: 260px;
+        width: 240px;
+      }
+      #slidesDiv .slide {
+        /* Show cursor as pointer when on a slide */
+        cursor: pointer;
+        margin-bottom: 6px;
+      }
+      #slidesDiv .slide .title {
+        /* Center the title text */
+        text-align: center;
+      }
+      /* Draw active slide with a nice border around the thumbnail */
+      #slidesDiv .slide.active img {
+        box-shadow: 0px 0px 12px black;
+        border-style: solid;
+        border-width: thin;
+        border-color: black;
+      }
+      #directDiv {
+        background-color: white;
+        opacity: 0.9;
+        color: black;
+        padding: 10px;
+        visibility: visible;
+        bottom: 20px;
+        overflow-y: auto;
+        text-align: center;
+        height: 260px;
+        width: 220px;
+        z-index: 0;
+      }
+    </style>
+
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.12/esri/themes/light/main.css"
+    />
+    <script src="https://js.arcgis.com/4.12/"></script>
+
+    <script>
+      require([
+        "esri/Map",
+        "esri/views/MapView",
+        "esri/Graphic",
+        "esri/layers/GraphicsLayer",
+        "esri/tasks/RouteTask",
+        "esri/widgets/Directions",
+        "esri/tasks/support/RouteParameters",
+        "esri/tasks/support/FeatureSet",
+         "esri/widgets/Search",
+         "esri/views/SceneView",
+         "esri/WebScene",
+         "esri/webscene/Slide",
+         "@dojo/framework/shim/array",
+      ], function(
+        Map,
+        MapView,
+        Graphic,
+        GraphicsLayer,
+        RouteTask,
+        Directions,
+        RouteParameters,
+        FeatureSet,
+        Search,
+        SceneView,
+        WebScene,
+        Slide,
+        Array
+      ) {
+        // Creating the Basic Routing Functions
+        var routeTask = new RouteTask({
+          url:
+           "https://utility.arcgis.com/usrsvcs/appservices/a6bR1egUty1q6MmN/rest/services/World/Route/NAServer/Route_World"
+        });
+        // The stops and route result will be stored in this layer
+        var routeLayer = new GraphicsLayer();
+        // Setup the route parameters
+        var routeParams = new RouteParameters({
+          stops: new FeatureSet(),
+          outSpatialReference: {
+            // autocasts as new SpatialReference()
+            wkid: 3857
+          }
+        });
+        routeParams.findBestSequence = true;
+        routeParams.preserveFirstStop = true;
+        routeParams.preserveLastStop = true;
+        routeParams.returnStops = true;
+        routeParams.returnDirections = true;
+        routeParams.directionsOutputType = "complete";
+        // Create the Symbologies on Map
+        var stopSymbol = {
+          type: "simple-marker",
+          style: "cross",
+          size: 15,
+          outline: {
+            width: 4
+          }
+        };
+        var routeSymbol = {
+          type: "simple-line",
+          color: [0, 0, 255, 0.5],
+          width: 5
+        };
+        /*
+        var map = new Map({
+          basemap: "streets",
+          layers: [routeLayer]
+        });*/
+        var scene = new WebScene({
+          portalItem: { // autocasts as new PortalItem()
+          id: "344bad711fca46ab89b3bfb46263de0b"  // ID of the WebScene on arcgis.com
+          },
+          layers: [routeLayer]
+        });
+        /*
+        var view = new SceneView({
+          container: "viewDiv",
+          map: scene,
+          center: [-117.195, 34.057],
+          zoom: 14
+        });
+        */
+        var view = new SceneView({
+          map: scene,
+          container: "viewDiv"
+        });
+        var addButton={
+          title:"add stop",
+          id:"add stop",
+        }
+        const editThisAction = {
+          title: "Edit feature",
+          id: "edit-this",
+          className: "esri-icon-edit"
+        };
+        var address = "test location";
+        var searchWidget = new Search({
+          view: view,
+          popupTemplate:{
+          title: "hi",
+          actions:[
+              {
+                id:"add stop",
+                title:"Add Stop"
+              }
+            ]
+          }
+        });
+        searchWidget.on("select-result", function(event){
+          searchWidget.popupTemplate.title = event.result.name;
+          address = event.result.name;
+        });
+        //searchWidget.popupTemplate.title = searchWidget.selectedResult.name;
+        view.ui.add([searchWidget, "slidesDiv", "directDiv"], {
+            position: "top-right",
+            index: 2
+        });
+        document.getElementById("slidesDiv").style.visibility = "visible";
+        function Stop(earlyArrival, lateArrival, minTime, maxTime, preference){
+          this.earlyArrival = earlyArrival;
+          this.lateArrival = lateArrival;
+          this.minTime = minTime;
+          this.maxTime = maxTime;
+          this.preference = preference;
+        }
+        function createSlideUI(slide) {
+                  var slideElement = document.createElement("div");
+                  slideElement.id = slide.id;
+                  slideElement.classList.add("slide");
+                  var slidesDiv = document.getElementById("slidesDiv");
+                  slidesDiv.appendChild(slideElement);
+                  var title = document.createElement("div");
+                  title.innerText = slide.title.text;
+                  slideElement.appendChild(title);
+                  var img = new Image();
+                  img.src = slide.thumbnail.url;
+                  img.title = slide.title.text;
+                  slideElement.appendChild(img);
+                  slideElement.addEventListener("click", function() {
+                    var slides = document.querySelectorAll(".slide");
+                    Array.from(slides).forEach(function(node) {
+                      node.classList.remove("active");
+                    });
+                    slideElement.classList.add("active");
+                    slide.applyTo(view);
+                  });
+                }
+        function deleteSlideUI(slide) {
+          var slidesDiv = document.getElementById("slidesDiv");
+          slidesDiv.removeChild(document.getElementById(slide.id));
+        }
+        var directDiv = document.getElementById("directDiv");
+        var welcome = document.createElement("div");
+        welcome.style.fontWeight = 'bold';
+        welcome.innerText = "Your Directions Will Show Up Here";
+        directDiv.appendChild(welcome);
+        function createDirectionUI(directions, times, lengths, totalLength, totalTime) {
+          var directDiv = document.getElementById("directDiv");
+          var subs = document.createElement("div");
+          var hours = Math.floor(totalTime/60);
+          var minutes = (Math.round((totalTime%60)*10)/10);
+          subs.innerText = "Total Length: " + (Math.round(totalLength*100)/100) + " miles";
+          directDiv.appendChild(subs);
+          var subs1 = document.createElement("div");
+          subs1.innerText = "Total Time: " + hours + " hours " + minutes + " min";
+          directDiv.appendChild(subs1);
+          for (var i = 0; i < directions.length; i++) {
+            var subs = document.createElement("div");
+            subs.innerText = "--------------------";
+            directDiv.appendChild(subs);
+            if (times[i] == 0) {
+              var direction = document.createElement("div");
+              direction.style.fontWeight = 'bold';
+              direction.innerText = directions[i];
+              directDiv.appendChild(direction);
+            } else {
+              var direction = document.createElement("div");
+              direction.innerText = directions[i];
+              var tim = document.createElement("div");
+              tim.innerText = "Time: " + (Math.round(times[i]*100)/100) + " min";
+              var dist = document.createElement("div");
+              dist.innerText = "Dist: " + (Math.round(lengths[i]*100)/100) + "miles";
+              directDiv.appendChild(direction);
+              directDiv.appendChild(tim);
+              directDiv.appendChild(dist);
+            }
+          }
+        }
+        function deleteDirectionUI() {
+          var directDiv = document.getElementById("directDiv");
+          directDiv.textContent = '';
+        }
+        // Creating Routing Functions
+        var firstStop, lastStop;
+        var arrStop = [];
+        var counter = 0;
+        function addStop(stopPoint) {
+          var stop = stopPoint.feature;
+          stop.popupTemplate = {
+          title: address,
+          content: [
+            {
+              type: "fields",
+              fieldInfos: [
+                {
+                  fieldName: "Earliest Arrival"
+                },
+                {
+                  fieldName: "Latest Arrival",
+                },
+                {
+                  fieldName: "Minimum Time"
+                },
+                {
+                  fieldName: "Maximum Time"
+                },
+                {
+                  fieldName: "Preference (1-10)"
+                }
+              ]
+            }
+          ],
+          actions:[
+              {
+                id:"delete stop",
+                title:"Delete Stop"
+              }, editThisAction
+            ]
+          };
+          //Assigns color to each stop
+          if (firstStop == null) {
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "green"
+              };
+          } else if (lastStop == null) {
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          } else {
+            lastStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 10,
+              color: "black"
+              };
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          }
+          //reassigns firstStop, lastStop, arrStop
+          routeLayer.add(stop);
+          if (firstStop == null) {
+            firstStop = stop;
+          } else if (lastStop == null) {
+            lastStop = stop;
+          } else {
+            arrStop.push(lastStop);
+            lastStop = stop
+          }
+          //Create Slide
+          Slide.createFrom(view).then(function(slide) {
+                scene.presentation.slides.add(slide);
+                slide.title.text = address;
+                slide.id = address;
+                createSlideUI(slide);
+              });
+          if (firstStop != null && lastStop!= null) {
+            solveRoute();
+          }
+        }
+        function removeStop(stop) {
+          routeLayer.remove(stop);
+          if (stop == firstStop) {
+            if (arrStop.length == 0 && lastStop == null) {
+              firstStop = null;
+            } else if (arrStop.length == 0) {
+              firstStop = lastStop;
+              lastStop = null;
+            } else {
+              firstStop = arrStop.shift();
+            }
+          } else if (stop == lastStop) {
+            lastStop = arrStop.pop();
+          } else {
+            for (var i = 0; i < arrStop.length; i++) {
+              if (arrStop[i] == stop) {
+                arrStop.splice(i,1);
+              }
+            }
+          }
+          if (firstStop != null) {
+            firstStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "green"
+              };
+          }
+          if (lastStop != null) {
+            lastStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          }
+          //Delete Slide
+          for (var i = 0; i < scene.presentation.slides.items.length; i++) {
+            if (scene.presentation.slides.items[i].id == stop.popupTemplate.title) {
+              var slide = scene.presentation.slides.items[i];
+              scene.presentation.slides.remove(slide);
+              deleteSlideUI(slide);
+            }
+          }
+          if (firstStop != null && lastStop!= null) {
+            solveRoute();
+          } else {
+            routeLayer.remove(prev_route);
+          }
+        }
+/*
+        function popupDirections(directions, times, lengths, totalLength, totalTime) {
+        }
+        */
+        function solveRoute() {
+          //first clear routeParams so no stops
+          routeParams.stops.features = [];
+            routeParams.stops.features.push(firstStop);
+            for (var i = 0; i < arrStop.length; i++) {
+              routeParams.stops.features.push(arrStop[i]);
+            }
+            routeParams.stops.features.push(lastStop);
+            routeTask.solve(routeParams).then(showRoute);
+        }
+        var prev_route;
+        function showRoute(data) {
+          var routeresult = data.routeResults[0].route;
+          routeresult.symbol = routeSymbol;
+          if (prev_route != null) {
+            routeLayer.remove(prev_route);
+          }
+          routeLayer.add(routeresult);
+          prev_route = routeresult;
+          var directions = [];
+          var times = [];
+          var lengths = [];
+          var totalLength;
+          var totalTime;
+          for (var i = 0; i < data.routeResults[0].directions.features.length; i++) {
+            directions.push(data.routeResults[0].directions.features[i].attributes.text);
+            times.push(data.routeResults[0].directions.features[i].attributes.time);
+            lengths.push(data.routeResults[0].directions.features[i].attributes.length);
+          }
+          totalLength = data.routeResults[0].directions.totalLength;
+          totalTime = data.routeResults[0].directions.totalDriveTime;
+          deleteDirectionUI();
+          createDirectionUI(directions, times, lengths, totalLength, totalTime);
+        }
+        view.popup.on("trigger-action", function(event)
+        {
+             if (event.action.id == "add stop")
+             {
+               addStop(searchWidget.selectedResult);
+             }
+             if (event.action.id == "delete stop")
+             {
+               //console.log(view, event);
+               removeStop(view.popup.selectedFeature);
+             }
+             if (event.action.id === "edit-this") {
+               //editThis();
+             }
+        });
+        /*
+        const input = document.querySelector('#myInput');
+        event.addEventListener('keyup',function(e){
+          if (e.keyCode === 13) {
+            alert('hi');
+          }
+        });
+        */
+      });
+    </script>
+  </head>
+  <body>
+    <div id="viewDiv"></div>
+    <div id="paneDiv" class="esri-widget">
+      <div>
+        <p>
+        </p>
+      </div>
+    </div>
+    <div id="slidesDiv" class="esri-widget"></div>
+    <div id="directDiv"></div>
+  </body>
+
+</html>
