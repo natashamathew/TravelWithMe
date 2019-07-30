@@ -1,0 +1,1108 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <!--
+  ArcGIS API for JavaScript, https://js.arcgis.com
+  For more information about the tasks-
+ sample, read the original sample description at developers.arcgis.com.
+  https://developers.arcgis.com/javascript/latest/sample-code/tasks-route/index.html
+  -->
+<title>RouteTask - 4.12</title>
+<link
+rel="stylesheet"
+href="https://js.arcgis.com/4.12/esri/themes/light/main.css"
+/>
+<script src="https://js.arcgis.com/4.12/"></script>
+    <style>
+      html,
+      body,
+      #viewDiv {
+        padding: 0;
+        margin: 0;
+        height: 100%;
+        width: 100%;
+        z-index: 1;
+      }
+      #paneDiv {
+        position: absolute;
+        top: 10px;
+        left: 62px;
+        padding: 0 12px 0 12px;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+      }
+      #slidesDiv {
+        background-color: white;
+        opacity: 0.9;
+        color: black;
+        padding: 10px;
+        visibility: hidden;
+        bottom: 20px;
+        overflow-y: auto;
+        text-align: center;
+        height: 260px;
+        width: 240px;
+      }
+      #slidesDiv .slide {
+        /* Show cursor as pointer when on a slide */
+        cursor: pointer;
+        margin-bottom: 6px;
+      }
+      #slidesDiv .slide .title {
+        /* Center the title text */
+        text-align: center;
+      }
+      /* Draw active slide with a nice border around the thumbnail */
+      #slidesDiv .slide.active img {
+        box-shadow: 0px 0px 12px black;
+        border-style: solid;
+        border-width: thin;
+        border-color: black;
+      }
+      #directDiv {
+        background-color: white;
+        opacity: 0.9;
+        color: black;
+        padding: 10px;
+        visibility: visible;
+        bottom: 20px;
+        overflow-y: auto;
+        text-align: center;
+        height: 260px;
+        width: 220px;
+        z-index: 0;
+      }
+      #info {
+        padding: 14px;
+        border-radius: 5px;
+      }
+      #update {
+        padding: 6px;
+      }
+      #form {
+        background: #fff;
+      }
+      /* replaces esri-widget--panel */
+      .scroller {
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+    </style>
+
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.12/esri/themes/light/main.css"
+    />
+    <script src="https://js.arcgis.com/4.12/"></script>
+
+    <script>
+      require([
+        "esri/Map",
+        "esri/views/MapView",
+        "esri/Graphic",
+        "esri/layers/GraphicsLayer",
+        "esri/tasks/RouteTask",
+        "esri/widgets/Directions",
+        "esri/tasks/support/RouteParameters",
+        "esri/tasks/support/FeatureSet",
+         "esri/widgets/Search",
+         "esri/views/SceneView",
+         "esri/WebScene",
+         "esri/webscene/Slide",
+         "@dojo/framework/shim/array",
+         "esri/support/actions/ActionButton",
+         "esri/layers/FeatureLayer",
+        "esri/widgets/Bookmarks",
+        "esri/webmap/Bookmark",
+        "esri/widgets/Editor",
+        "esri/popup/content/AttachmentsContent",
+        "esri/popup/content/TextContent",
+        "esri/widgets/FeatureForm"
+      ], function(
+        Map,
+        MapView,
+        Graphic,
+        GraphicsLayer,
+        RouteTask,
+        Directions,
+        RouteParameters,
+        FeatureSet,
+        Search,
+        SceneView,
+        WebScene,
+        Slide,
+        Array,
+        ActionButton,
+        FeatureLayer, 
+        Bookmarks, 
+        Bookmark,
+        Editor,
+        AttachmentsContent,
+        TextContent,
+        FeatureForm
+      ) {
+        let highlight, editFeature;
+        const category = document.getElementById("category").text;
+        // Creating the Basic Routing Functions
+        var routeTask = new RouteTask({
+          url:
+           "https://utility.arcgis.com/usrsvcs/appservices/a6bR1egUty1q6MmN/rest/services/World/Route/NAServer/Route_World"
+        });
+        // The stops and route result will be stored in this layer
+        var routeLayer = new GraphicsLayer();
+        // Setup the route parameters
+        var routeParams = new RouteParameters({
+          stops: new FeatureSet(),
+          outSpatialReference: {
+            // autocasts as new SpatialReference()
+            wkid: 3857
+          }
+        });
+        routeParams.findBestSequence = true;
+        routeParams.preserveFirstStop = true;
+        routeParams.preserveLastStop = true;
+        routeParams.returnStops = true;
+        routeParams.returnDirections = true;
+        routeParams.directionsOutputType = "complete";
+        // Create the Symbologies on Map
+        var stopSymbol = {
+          type: "simple-marker",
+          style: "cross",
+          size: 15,
+          outline: {
+            width: 4
+          }
+        };
+        var routeSymbol = {
+          type: "simple-line",
+          color: [0, 0, 255, 0.5],
+          width: 5
+        };
+ //--------------------------------set up scenes-----------------------------
+        var map = new Map({
+          basemap: "streets",
+          layers:[routeLayer]
+        });
+       var view = new MapView({
+          container: "viewDiv", // Reference to the scene div created in step 5
+          map: map, // Reference to the map object created before the scene
+          center: [-118.2437,34.0522],
+          zoom: 12
+        });
+       
+        const editThisAction = {
+          title: "Edit feature",
+          id: "edit-this",
+          className: "esri-icon-edit"
+        };
+        const editThisStopAction = {
+        title: "Edit stop",
+        id: "edit-this-stop",
+        className: "esri-icon-edit"
+      };
+        var address = "test location";
+        var searchWidget = new Search({
+          view: view,
+          popupTemplate:{
+          title: "hi",
+          actions:[
+              {
+                id:"add stop",
+                title:"Add Stop"
+              }
+            ]
+          }
+        });
+        searchWidget.popupTemplate.actions.push(editThisStopAction);
+          view.popup.on("trigger-action", function(event) 
+       {
+  
+            if (event.action.id==="edit-this-stop")
+            {
+              var stopFeatureLayer = new FeatureLayer(routeLayer);
+              editThisStop();
+            }
+       });
+
+       
+       searchWidget.on("select-result", function(event){
+        searchWidget.popupTemplate.title = event.result.name;
+          address = event.result.name;
+        });
+       
+        
+        view.ui.add([searchWidget, "slidesDiv", "directDiv"], {
+            position: "top-right",
+            index: 2
+        });
+        document.getElementById("slidesDiv").style.visibility = "visible";
+        function Stop(earlyArrival, lateArrival, minTime, maxTime, preference){
+          this.earlyArrival = earlyArrival;
+          this.lateArrival = lateArrival;
+          this.minTime = minTime;
+          this.maxTime = maxTime;
+          this.preference = preference;
+        }
+        function createSlideUI(slide) {
+                  var slideElement = document.createElement("div");
+                  slideElement.id = slide.id;
+                  slideElement.classList.add("slide");
+                  var slidesDiv = document.getElementById("slidesDiv");
+                  slidesDiv.appendChild(slideElement);
+                  var title = document.createElement("div");
+                  title.innerText = slide.title.text;
+                  slideElement.appendChild(title);
+                  var img = new Image();
+                  img.src = slide.thumbnail.url;
+                  img.title = slide.title.text;
+                  slideElement.appendChild(img);
+                  slideElement.addEventListener("click", function() {
+                    var slides = document.querySelectorAll(".slide");
+                    Array.from(slides).forEach(function(node) {
+                      node.classList.remove("active");
+                    });
+                    slideElement.classList.add("active");
+                    slide.applyTo(view);
+                  });
+                }
+        function deleteSlideUI(slide) {
+          var slidesDiv = document.getElementById("slidesDiv");
+          slidesDiv.removeChild(document.getElementById(slide.id));
+        }
+        var directDiv = document.getElementById("directDiv");
+        var welcome = document.createElement("div");
+        welcome.innerText = "Your Directions Will Show Up Here";
+        directDiv.appendChild(welcome);
+        function createDirectionUI(directions, times, lengths, totalLength, totalTime) {
+          var directDiv = document.getElementById("directDiv");
+          var subs = document.createElement("div");
+          var hours = Math.floor(totalTime/60);
+          var minutes = (Math.round((totalTime%60)*10)/10);
+          subs.innerText = "Total Length: " + (Math.round(totalLength*100)/100) + " miles";
+          directDiv.appendChild(subs);
+          var subs1 = document.createElement("div");
+          subs1.innerText = "Total Time: " + hours + " hours " + minutes + " min";
+          directDiv.appendChild(subs1);
+          for (var i = 0; i < directions.length; i++) {
+            var subs = document.createElement("div");
+            subs.innerText = "--------------------";
+            directDiv.appendChild(subs);
+            if (times[i] == 0) {
+              var direction = document.createElement("div");
+              direction.innerText = directions[i];
+              directDiv.appendChild(direction);
+            } else {
+              var direction = document.createElement("div");
+              direction.innerText = directions[i];
+              var tim = document.createElement("div");
+              tim.innerText = "Time: " + (Math.round(times[i]*100)/100) + " min";
+              var dist = document.createElement("div");
+              dist.innerText = "Dist: " + (Math.round(lengths[i]*100)/100) + "miles";
+              directDiv.appendChild(direction);
+              directDiv.appendChild(tim);
+              directDiv.appendChild(dist);
+            }
+          }
+        }
+        function deleteDirectionUI() {
+          var directDiv = document.getElementById("directDiv");
+          directDiv.textContent = '';
+        }
+        // Creating Routing Functions
+        var firstStop, lastStop;
+        var arrStop = [];
+        var counter = 0;
+        function addStop(stopPoint) {
+        if (stopPoint.feature==null)
+        {
+            var stop=stopPoint
+        }
+        else if (stopPoint.feature!=null)
+        {
+            var stop = stopPoint.feature;
+        }
+        
+          stop.popupTemplate = {
+          title: address,
+          content: [
+            {
+              type: "fields",
+              fieldInfos: [
+                {
+                  fieldName: "Earliest Arrival"
+                },
+                {
+                  fieldName: "Latest Arrival",
+                },
+                {
+                  fieldName: "Minimum Time"
+                },
+                {
+                  fieldName: "Maximum Time"
+                },
+                {
+                  fieldName: "Preference (1-10)"
+                }
+              ]
+            }
+          ],
+          actions:[
+              {
+                id:"delete stop",
+                title:"Delete Stop"
+              }, editThisStopAction
+            ]
+          };
+         // stop.popupTemplate.actions.push(addStopAction);
+          //Assigns color to each stop
+          if (firstStop == null) {
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "green"
+              };
+          } else if (lastStop == null) {
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          } else {
+            lastStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 10,
+              color: "black"
+              };
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          }
+          //reassigns firstStop, lastStop, arrStop
+          routeLayer.add(stop);
+          if (firstStop == null) {
+            firstStop = stop;
+          } else if (lastStop == null) {
+            lastStop = stop;
+          } else {
+            arrStop.push(lastStop);
+            lastStop = stop
+          }
+          //Create Slide
+          Slide.createFrom(view).then(function(slide) {
+                scene.presentation.slides.add(slide);
+                slide.title.text = address;
+                slide.id = address;
+                createSlideUI(slide);
+              });
+          if (firstStop != null && lastStop!= null) {
+           solveRoute();
+          }
+        }
+        function removeStop(stop) {
+          routeLayer.remove(stop);
+          if (stop == firstStop) {
+            if (arrStop.length == 0 && lastStop == null) {
+              firstStop = null;
+            } else if (arrStop.length == 0) {
+              firstStop = lastStop;
+              lastStop = null;
+            } else {
+              firstStop = arrStop.shift();
+            }
+          } else if (stop == lastStop) {
+            lastStop = arrStop.pop();
+          } else {
+            for (var i = 0; i < arrStop.length; i++) {
+              if (arrStop[i] == stop) {
+                arrStop.splice(i,1);
+              }
+            }
+          }
+          if (firstStop != null) {
+            firstStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "green"
+              };
+          }
+          if (lastStop != null) {
+            lastStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          }
+          //Delete Slide
+          for (var i = 0; i < scene.presentation.slides.items.length; i++) {
+            if (scene.presentation.slides.items[i].id == stop.popupTemplate.title) {
+              var slide = scene.presentation.slides.items[i];
+              scene.presentation.slides.remove(slide);
+              deleteSlideUI(slide);
+            }
+          }
+          if (firstStop != null && lastStop!= null) {
+            solveRoute();
+         } else {
+            routeLayer.remove(prev_route);
+          }
+        }
+/*
+        function popupDirections(directions, times, lengths, totalLength, totalTime) {
+        }
+        */
+        function solveRoute() {
+          //first clear routeParams so no stops
+          routeParams.stops.features = [];
+            routeParams.stops.features.push(firstStop);
+            for (var i = 0; i < arrStop.length; i++) {
+              routeParams.stops.features.push(arrStop[i]);
+            }
+            routeParams.stops.features.push(lastStop);
+            routeTask.solve(routeParams).then(showRoute);
+        }
+        var prev_route;
+        function showRoute(data) {
+          var routeresult = data.routeResults[0].route;
+          routeresult.symbol = routeSymbol;
+          if (prev_route != null) {
+            routeLayer.remove(prev_route);
+          }
+          routeLayer.add(routeresult);
+          prev_route = routeresult;
+          var directions = [];
+          var times = [];
+          var lengths = [];
+          var totalLength;
+          var totalTime;
+          for (var i = 0; i < data.routeResults[0].directions.features.length; i++) {
+            directions.push(data.routeResults[0].directions.features[i].attributes.text);
+            times.push(data.routeResults[0].directions.features[i].attributes.time);
+            lengths.push(data.routeResults[0].directions.features[i].attributes.length);
+          }
+          totalLength = data.routeResults[0].directions.totalLength;
+          totalTime = data.routeResults[0].directions.totalDriveTime;
+          deleteDirectionUI();
+          createDirectionUI(directions, times, lengths, totalLength, totalTime);
+        }
+        view.popup.on("trigger-action", function(event)
+        {
+             if (event.action.id == "add stop")
+             {
+                if (searchWidget.selectedResult!=null)
+                {
+                    addStop(searchWidget.selectedResult);
+                    //var testFeatureLayer=new FeatureLayer(routeLayer);
+                }
+               /* else if (searchWidget.selectedResult==null)
+                {
+                    view.on("click", function(event) {
+          // Unselect any currently selected features
+          unselectFeature();
+          // Listen for when the user clicks on the view
+          view.hitTest(event).then(function(response) {
+            // If user selects a feature, select it
+            const results = response.results;
+          });
+        });
+                    addStop(results);
+                }*/
+              // var stopFLayer=new featureLayer(routeLayer);
+             }
+             else if (event.action.id == "delete stop")
+             {
+               //console.log(view, event);
+               removeStop(view.popup.selectedFeature);
+               var testFeatureLayer=new FeatureLayer(routeLayer);
+             }
+             else if (event.action.id === "edit-this-stop") 
+             {
+               editThisStop();
+             }
+        });
+        const symbolCats = [
+          "post-office",
+          "atm",
+          "place-of-worship",
+          "park",
+          "school",
+          "hospital",
+          "fire-station",
+          "playground",
+          "shopping-center",
+          "campground",
+          "golf-course",
+          "library",
+          "city-hall",
+          "beach",
+          "police-station",
+          "subway-station",
+          "train-station",
+          "cemetery",
+          "trail",
+          "radio-tower",
+          "museum",
+          "airport",
+          "live-music-venue",
+          "sports-complex",
+          "ferry"
+        ];
+        rendererInfos = symbolCats.map((symCat) => {
+          return {
+            value: symCat,
+            symbol: {
+              type: "web-style",
+              name: symCat,
+              styleName: "Esri2DPointSymbolsStyle"
+            },
+            label: symCat
+          };
+        });
+        const scale = 36112;
+        const renderer = {
+          type: "unique-value", // autocasts as new UniqueValueRenderer()
+          valueExpression: category,
+          valueExpressionTitle: "Symbol Categories",
+          uniqueValueInfos: rendererInfos,
+          visualVariables: [
+            {
+              type: "size",
+              valueExpression: "$view.scale",
+              stops: [
+                { value: scale, size: 20 },
+                { value: scale * 2, size: 15 },
+                { value: scale * 4, size: 10 },
+                { value: scale * 8, size: 5 },
+                { value: scale * 16, size: 2 },
+                { value: scale * 32, size: 1 }
+              ]
+            }
+          ]
+        };
+        const featureLayer = new FeatureLayer({
+          url:
+            "https://services.arcgis.com/Wl7Y1m92PbjtJs5n/arcgis/rest/services/LA_County_Points_of_Interest/FeatureServer",
+          renderer: renderer,
+          outFields: ["*"],
+          popupTemplate: {
+            title: "{Name}",
+            content: [
+              {
+                type: "fields",
+                fieldInfos: [
+                  {
+                    fieldName: "cat2",
+                    label: "Category"
+                  },
+                  {
+                    fieldName: "addrln1",
+                    label: "Address"
+                  },
+                  {
+                    fieldName: "city",
+                    label: "City"
+                  },
+                  {
+                    fieldName: "phones",
+                    label: "Phone number"
+                  },
+                  {
+                    fieldName: "link",
+                    label: "Link"
+                  }
+                ]
+              }
+            ],
+            actions: [
+              {
+                id:"add stop",
+                title:"add Stop"
+              }, editThisAction
+            ]
+          }
+        });
+       // scene.layers.add(featureLayer);
+      
+       //featureLayer.popupTemplate.push(addStopAction);
+        map.add(featureLayer);
+        let editor, features;
+                // Add a new feature form with grouped fields
+          const form = new FeatureForm({
+          container: "form",
+          groupDisplay: "sequential", // only display one group at a time
+          layer: featureLayer,
+          fieldConfig: [
+            {
+              // autocastable to FieldGroupConfig
+              label: "Inspector information", // Inspector group
+              description: "Field inspector information",
+              // individual field configurations within the group
+              fieldConfig: [
+                  {
+                    name: "cat2",
+                    label: "cat2",
+                    editable: true
+                  }
+                
+              ]
+            },
+          ]
+        });
+        stopFeatureLayer=new FeatureLayer(routeLayer);
+        const stopsForm = new FeatureForm({
+          container: "form",
+          groupDisplay: "sequential", // only display one group at a time
+          
+          layer: stopFeatureLayer,
+          fieldConfig: [
+            {
+              // autocastable to FieldGroupConfig
+              label: "Inspector information", // Inspector group
+              description: "Field inspector information",
+              // individual field configurations within the group
+              fieldConfig: [
+                {
+                  // autocastable as FieldConfig
+                  name: "earlyArrival",
+                  label: "early arrival"
+                },
+                {
+                  name: "lateArrival",
+                  label: "late arrival"
+                },
+                {
+                  name: "minTime",
+                  label: "minimum time to spend"
+                },
+                {
+                  name: "maxTime",
+                  label: "maxmum time to spend"
+                },
+                {
+                  name: "preference",
+                  label: "preference"
+                }
+
+              ]
+            }
+              ]          
+        });
+        view.on("click", function(event) {
+          // Unselect any currently selected features
+          unselectFeature();
+          // Listen for when the user clicks on the view
+          view.hitTest(event).then(function(response) {
+            // If user selects a feature, select it
+            const results = response.results;
+            if (
+              results.length > 0 &&
+              results[0].graphic &&
+              results[0].graphic.layer === featureLayer
+            ) {
+              selectFeature(
+                results[0].graphic.attributes[featureLayer.objectIdField]
+              );
+            } else {
+              // Hide the form and show the info div
+              document.getElementById("update").classList.add("esri-hidden");
+            }
+          });
+        });
+        // Function to unselect features
+        function unselectFeature() {
+          if (highlight) {
+            highlight.remove();
+          }
+        }
+        // Highlight the clicked feature and display
+        // its attributes in the featureform.
+        function selectFeature(objectId) {
+          // query feature from the server
+          featureLayer
+            .queryFeatures({
+              objectIds: [objectId],
+              outFields: ["*"],
+              returnGeometry: true
+            })
+            .then(function(results) {
+              if (results.features.length > 0) {
+                editFeature = results.features[0];
+                // display the attributes of selected feature in the form
+                form.feature = editFeature;
+                // highlight the feature on the view
+                view.whenLayerView(editFeature.layer).then(function(layerView) {
+                  highlight = layerView.highlight(editFeature);
+                });
+                if (
+                  document
+                    .getElementById("update")
+                    .classList.contains("esri-hidden")
+                ) {
+                  document.getElementById("info").classList.add("esri-hidden");
+                  document
+                    .getElementById("update")
+                    .classList.remove("esri-hidden");
+                }
+              }
+            });
+        }
+        // Listen to the feature form's submit event.
+        form.on("submit", function() {
+          if (editFeature) {
+            // Grab updated attributes from the form.
+            const updated = form.getValues();
+            // Loop through updated attributes and assign
+            // the updated values to feature attributes.
+            Object.keys(updated).forEach(function(name) {
+              editFeature.attributes[name] = updated[name];
+            });
+            // Setup the applyEdits parameter with updates.
+            const edits = {
+              updateFeatures: [editFeature]
+            };
+            applyAttributeUpdates(edits);
+          }
+        });
+        // Call FeatureLayer.applyEdits() with specified params.
+        function applyAttributeUpdates(params) {
+          document.getElementById("btnUpdate").style.cursor = "progress";
+         
+          featureLayer
+            .applyEdits(params)
+            .then(function(editsResult) {
+              // Get the objectId of the newly added feature.
+              // Call selectFeature function to highlight the new feature.
+              if (editsResult.addFeatureResults.length > 0) {
+                const objectId = editsResult.addFeatureResults[0].objectId;
+                selectFeature(objectId);
+              }
+              document.getElementById("btnUpdate").style.cursor = "pointer";
+            })
+            .catch(function(error) {
+              console.log("===============================================");
+              console.error(
+                "[ applyEdits ] FAILURE: ",
+                error.code,
+                error.name,
+                error.message
+              );
+              console.log("error = ", error);
+              document.getElementById("btnUpdate").style.cursor = "pointer";
+            });
+            var point = {
+          type: "point", // autocasts as new Point()
+          longitude: editFeature.geometry.longitude,
+          latitude: editFeature.geometry.latitude
+        };
+        var markerSymbol = {
+          type: "simple-marker",
+          style: "cross",
+          size: 15,
+          outline: {
+            width: 4
+          }
+        };
+        var pointGraphic = new Graphic({
+          geometry: point,
+          symbol: markerSymbol
+        });
+        routeLayer.add(pointGraphic);
+       // view.graphics.add([pointGraphic]);
+        }
+
+        document.getElementById("btnUpdate").onclick = function() {
+          // Fires feature form's submit event.
+          form.submit();
+        };
+        view.ui.add("update", "bottom-left");
+        view.ui.add("info", {
+          position: "top-left",
+          index: 1
+        });
+
+
+
+        function editThisStop(){
+          // Unselect any currently selected features
+          unselectFeature();
+          // Listen for when the user clicks on the view
+          /*view.hitTest(event).then(function(response) {
+            // If user selects a feature, select it
+            const results = response.results;
+            if (
+              results.length > 0 &&
+              results[0].graphic &&
+              results[0].graphic.layer === stopFeatureLayer
+            ) {
+              selectFeature(
+                results[0].graphic.attributes[stopFeatureLayer.objectIdField]
+              );
+            } else {
+              // Hide the form and show the info div
+              document.getElementById("update").classList.add("esri-hidden");
+            }
+          });*/
+          view.popup.on("trigger-action", function(event) 
+       {
+  
+            if (event.action.id==="edit-this-stop")
+            {         
+              stopFeatureLayer=new FeatureLayer();
+              for stops in routeLayer 
+              stopFeatureLayer=new FeatureLayer(routeLayer);
+              selectFeature(
+                searchWidget.selectedResult.attributes[stopFeatureLayer.objectIdField]
+              );
+            }
+              else 
+              {
+              // Hide the form and show the info div
+              document.getElementById("update").classList.add("esri-hidden");
+              }
+            
+        });
+
+
+          view.hitTest(event).then(function(response) {
+            // If user selects a feature, select it
+            const results = response.results;
+            if (
+              results.length > 0 &&
+              results[0].graphic &&
+              results[0].graphic.layer === stopFeatureLayer
+            ) {
+              selectFeature(
+                results[0].graphic.attributes[stopFeatureLayer.objectIdField]
+              );
+            } else {
+              // Hide the form and show the info div
+              document.getElementById("update").classList.add("esri-hidden");
+            }
+          });
+
+
+        };
+        // Function to unselect features
+        function unselectFeature() {
+          if (highlight) {
+            highlight.remove();
+          }
+        }
+        // Highlight the clicked feature and display
+        // its attributes in the featureform.
+        function selectFeature(objectId) {
+          // query feature from the server
+          stopFeatureLayer
+            .queryFeatures({
+              objectIds: [objectId],
+              outFields: ["*"],
+              returnGeometry: true
+            })
+            .then(function(results) {
+              if (results.features.length > 0) {
+                editFeature = results.features[0];
+                // display the attributes of selected feature in the form
+                form.feature = editFeature;
+                // highlight the feature on the view
+                view.whenLayerView(editFeature.layer).then(function(layerView) {
+                  highlight = layerView.highlight(editFeature);
+                });
+                if (
+                  document
+                    .getElementById("update")
+                    .classList.contains("esri-hidden")
+                ) {
+                  document.getElementById("info").classList.add("esri-hidden");
+                  document
+                    .getElementById("update")
+                    .classList.remove("esri-hidden");
+                }
+              }
+            });
+        }
+        // Listen to the feature form's submit event.
+        stopsForm.on("submit", function() {
+          if (editFeature) {
+            // Grab updated attributes from the form.
+            const updated = form.getValues();
+            // Loop through updated attributes and assign
+            // the updated values to feature attributes.
+            Object.keys(updated).forEach(function(name) {
+              editFeature.attributes[name] = updated[name];
+            });
+            // Setup the applyEdits parameter with updates.
+            const edits = {
+              updateFeatures: [editFeature]
+            };
+            applyAttributeUpdates(edits);
+          }
+        });
+        // Call FeatureLayer.applyEdits() with specified params.
+        function applyAttributeUpdates(params) {
+          document.getElementById("btnUpdate").style.cursor = "progress";
+         
+          stopFeatureLayer
+            .applyEdits(params)
+            .then(function(editsResult) {
+              // Get the objectId of the newly added feature.
+              // Call selectFeature function to highlight the new feature.
+              if (editsResult.addFeatureResults.length > 0) {
+                const objectId = editsResult.addFeatureResults[0].objectId;
+                selectFeature(objectId);
+              }
+              document.getElementById("btnUpdate").style.cursor = "pointer";
+            })
+            .catch(function(error) {
+              console.log("===============================================");
+              console.error(
+                "[ applyEdits ] FAILURE: ",
+                error.code,
+                error.name,
+                error.message
+              );
+              console.log("error = ", error);
+              document.getElementById("btnUpdate").style.cursor = "pointer";
+            });
+            var point = {
+          type: "point", // autocasts as new Point()
+          longitude: editFeature.geometry.longitude,
+          latitude: editFeature.geometry.latitude
+        };
+        var markerSymbol = {
+          type: "simple-marker",
+          style: "cross",
+          size: 15,
+          outline: {
+            width: 4
+          }
+        };
+        var pointGraphic = new Graphic({
+          geometry: point,
+          symbol: markerSymbol
+        });
+        routeLayer.add(pointGraphic);
+       // view.graphics.add([pointGraphic]);
+        }
+
+        document.getElementById("btnUpdate").onclick = function() {
+          // Fires feature form's submit event.
+          form.submit();
+        };
+        view.ui.add("update", "bottom-left");
+        view.ui.add("info", {
+          position: "top-left",
+          index: 1
+        });
+      });
+    </script>
+        <script type="text/plain" id="category">
+          // if($feature.cat2 == "UPS Locations" || $feature.cat2 == "USPS Mail Collection Boxes" || $feature.cat2 == "DHL Locations" || $feature.cat2 == "Federal Express Locations"){
+          //   return "post-office"
+         //  }
+      //     if($feature.cat2=="Banking and Finance"){
+      //       return "atm"
+      //     }
+      //     else if($feature.cat2 == "Churches"){
+      //       return "place-of-worship"
+       //    }
+      //     else if($feature.cat2 == "Parks and Gardens"){
+      //       return "park"
+      //     }
+         //  else if($feature.cat1 == "Education"){
+        //     return "school"
+         //  }
+       //     if($feature.cat2 == "Mental Health Centers" ||$feature.cat2 == "Medicare and Medicaid Offices"|| $feature.cat2 == "Mental Health Counseling" || $feature.cat2== "Dental Care" || $feature.cat2 == "Health Clinics" || $feature.cat2== "Health Centers" || $feature.cat2 == "Health Education and Counseling" || $feature.cat2== "Health Screening and Testing" || $feature.cat2== "Hospitals and Medical Centers"){
+       //      return "hospital"
+      //     }
+      //    else if($feature.cat2 == "Fire Stations"){
+      //       return "fire-station"
+      //     }
+      //     else if($feature.cat2 == "Recreation Centers" || $feature.cat2 == "Recreation Programs" || $feature.cat2 == "Park and Ride Locations"){
+       //      return "playground"
+       //    }
+           if($feature.cat2 == "Shopping Centers" || $feature.cat2=="Thrift Shops"){
+             return "shopping-center"
+           }
+           else if($feature.cat2 == "Campgrounds"){
+             return "campground"
+           }
+      //     else if($feature.cat2 == "Golf Courses"){
+     //        return "golf-course"
+      //     }
+       //    else if($feature.cat2 == "Libraries"){
+      //       return "library"
+      //     }
+      //     else if($feature.cat2 == "City Halls"|| $feature.cat2 == "Government Offices" || $feature.cat2 =="County Offices" || $feature.cat2 =="Probation Offices" || $feature.cat2 =="Social Security Administration"){
+       //      return "city-hall"
+      //     }
+           else if($feature.cat2 == "Beaches and Marinas"){
+             return "beach"
+           }
+      //     else if($feature.cat2 == "Sheriff and Police Stations"){
+      //       return "police-station"
+      //     }
+          /* else if($feature.cat2 == "Metro Stations"){
+             return "subway-station"
+           }
+           else if($feature.cat2 == "Metrolink Stations" || $feature.cat2 == "Amtrak Stations"){
+             return "train-station"
+           }*/
+      //     else if($feature.cat2 == "Cemeteries"){
+      //       return "cemetery"
+       //    }
+           else if($feature.cat2 == "Trails"){
+             return "trail"
+           }
+      //     else if($feature.cat2 == "Microwave Towers" || $feature.cat2 =="Cellular Towers"){
+      //       return "radio-tower"
+     //      }
+           else if($feature.cat2 == "Museums and Aquariums"){
+             return "museum"
+           }
+       //    else if($feature.cat2 == "Airport"){
+      //       return "airport"
+      //     }
+           else if($feature.cat2 == "Cultural and Performing Arts Centers"){
+             return "live-music-venue"
+           }
+           else if($feature.cat2 == "Sports Venues"){
+             return "sports-complex"
+           }
+      //     else if($feature.cat2 == "Ferries"){
+      //       return "ferry"
+       //    }
+         </script>
+  </head>
+  <body>
+    <div id="viewDiv"></div>
+    <div id="info" class="esri-widget"></div>
+    <div id="paneDiv" class="esri-widget">
+        <h3>Where would you like to go? </h3>
+        <input type="radio" name="filter" value="noFilter" checked /> No filter<br />
+        <input type="radio" name="filter" value="playground" /> Filter plaground
+        <br />
+        <input type="radio" name="filter" value="hospital" /> Filter hospital
+       <br />
+      <div>
+        <p>
+        </p>
+      </div>
+      <div id="update" class="esri-widget esri-hidden">
+        <div id="form" class="scroller esri-component"></div>
+        <input
+        type="button"
+        class="esri-button"
+        value="Update assessment"
+        id="btnUpdate"
+      />
+    </div>
+    <div id="slidesDiv" class="esri-widget"></div>
+    <div id="directDiv"></div>
+  </body>
+
+</html>
