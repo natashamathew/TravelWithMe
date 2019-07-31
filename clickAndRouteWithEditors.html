@@ -1,0 +1,1319 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <!--
+  ArcGIS API for JavaScript, https://js.arcgis.com
+  For more information about the tasks-
+ sample, read the original sample description at developers.arcgis.com.
+  https://developers.arcgis.com/javascript/latest/sample-code/tasks-route/index.html
+  -->
+<title>RouteTask - 4.12</title>
+    <style>
+      html,
+      body,
+      #viewDiv {
+        padding: 0;
+        margin: 0;
+        height: 100%;
+        width: 100%;
+        z-index: 1;
+      }
+      #paneDiv {
+        position: absolute;
+        top: 10px;
+        left: 62px;
+        padding: 0 12px 0 12px;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+      }
+
+      #slidesDiv {
+        background-color: white;
+        opacity: 0.9;
+        color: black;
+        padding: 10px;
+        visibility: hidden;
+        bottom: 20px;
+        overflow-y: auto;
+        text-align: center;
+        height: 260px;
+        width: 240px;
+      }
+
+      #slidesDiv .slide {
+        /* Show cursor as pointer when on a slide */
+        cursor: pointer;
+        margin-bottom: 6px;
+      }
+
+      #slidesDiv .slide .title {
+        /* Center the title text */
+        text-align: center;
+      }
+      /* Draw active slide with a nice border around the thumbnail */
+
+      #slidesDiv .slide.active img {
+        box-shadow: 0px 0px 12px black;
+        border-style: solid;
+        border-width: thin;
+        border-color: black;
+      }
+
+      #directDiv {
+        background-color: white;
+        opacity: 0.9;
+        color: black;
+        padding: 10px;
+        visibility: visible;
+        bottom: 20px;
+        overflow-y: auto;
+        text-align: center;
+        height: 260px;
+        width: 220px;
+        z-index: 0;
+      }
+
+      #info {
+        padding: 14px;
+        border-radius: 5px;
+      }
+
+      #update {
+        padding: 6px;
+      }
+
+      #form {
+        background: #fff;
+      }
+
+      /* replaces esri-widget--panel */
+      .scroller {
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+
+
+
+
+    </style>
+
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.12/esri/themes/light/main.css"
+    />
+    <script src="https://js.arcgis.com/4.12/"></script>
+
+    <script>
+      require([
+        "esri/Map",
+        "esri/views/MapView",
+        "esri/Graphic",
+        "esri/layers/GraphicsLayer",
+        "esri/tasks/RouteTask",
+        "esri/widgets/Directions",
+        "esri/tasks/support/RouteParameters",
+        "esri/tasks/support/FeatureSet",
+         "esri/widgets/Search",
+         "esri/views/SceneView",
+         "esri/WebScene",
+         "esri/webscene/Slide",
+         "@dojo/framework/shim/array",
+         "esri/layers/FeatureLayer",
+         "esri/layers/support/Field",
+         "esri/widgets/FeatureForm",
+         "esri/renderers/UniqueValueRenderer",
+         "esri/widgets/Legend"
+      ], function(
+        Map,
+        MapView,
+        Graphic,
+        GraphicsLayer,
+        RouteTask,
+        Directions,
+        RouteParameters,
+        FeatureSet,
+        Search,
+        SceneView,
+        WebScene,
+        Slide,
+        Array,
+        FeatureLayer,
+        Field,
+        FeatureForm,
+        UniqueValueRenderer,
+        Legend
+      ) {
+        let highlight, editFeature;
+        // Creating the Basic Routing Functions
+        var routeTask = new RouteTask({
+          url:
+           "https://utility.arcgis.com/usrsvcs/appservices/a6bR1egUty1q6MmN/rest/services/World/Route/NAServer/Route_World"
+          // "https://www.arcgis.com/home/webmap/viewer.html?webmap=4f2e99ba65e34bb8af49733d9778fb8e"
+        });
+        // The stops and route result will be stored in this layer
+        var routeLayer = new GraphicsLayer();
+        // Setup the route parameters
+        var routeParams = new RouteParameters({
+          stops: new FeatureSet(),
+          outSpatialReference: {
+            // autocasts as new SpatialReference()
+            wkid: 3857
+          }
+        });
+        routeParams.findBestSequence = true;
+        routeParams.preserveFirstStop = true;
+        routeParams.preserveLastStop = true;
+        routeParams.returnStops = true;
+        routeParams.returnDirections = true;
+        routeParams.directionsOutputType = "complete";
+
+        var dummyfeature = [{
+          geometry: {
+            type: "point",
+            x: 0,
+            y: 0
+          },
+          attributes : {
+            objectId: 0,
+            earlyArrival: 0,
+            lateArrival: 0,
+            minTime: 0,
+            maxTime: 0,
+            preference: 0
+          }}];
+
+          const fields = [new Field({
+            name: "earlyArrival",
+            alias: "earlyArrival",
+            type: "integer"
+          }), new Field({
+            name: "lateArrival",
+            alias: "lateArrival",
+            type: "integer"
+          }), new Field ({
+            name: "minTime",
+            alias: "minTime",
+            type: "integer"
+          }), new Field({
+            name: "maxTime",
+            alias: "maxTime",
+            type: "integer"
+          }), new Field({
+            name: "preference",
+            alias: "preference",
+            type: "integer"
+          })];
+
+        var forFeatureForm = new FeatureLayer({
+          source: dummyfeature,
+          fields: fields,
+          objectIdField: "objectId",
+          renderer: {
+            type: "simple",  // autocasts as new SimpleRenderer()
+            symbol: {
+              type: "simple-marker",  // autocasts as new SimpleMarkerSymbol()
+              size: 6,
+              color: "black",
+            }
+          }
+        });
+
+        const form = new FeatureForm({
+          container: "form",
+          groupDisplay: "all", // only display one group at a time
+          layer: forFeatureForm,
+          fieldConfig: [
+            {
+              // autocastable to FieldGroupConfig
+              label: "Fill in the Parameters for the Stop", // Inspector group
+              description: "Parameters affect the routing service",
+              // individual field configurations within the group
+              fieldConfig: [
+                {
+                  // autocastable as FieldConfig
+                  name: "earlyArrival",
+                  label: "Earliest Arrival"
+                },
+                {
+                  name: "lateArrival",
+                  label: "Latest Arrival"
+                },
+                {
+                  name: "minTime",
+                  label: "Minimum Time (min)"
+                },
+                {
+                  name: "maxTime",
+                  label: "Maximum Time (min)"
+                },
+                {
+                  name: "preference",
+                  label: "Preference (1-10)"
+                }
+              ]
+            }]});
+
+
+
+            function unselectFeature() {
+              if (highlight) {
+                highlight.remove();
+              }
+            }
+
+            function selectFeature(objectId) {
+          // query feature from the server
+          forFeatureForm
+            .queryFeatures({
+              objectIds: [objectId],
+              outFields: ["*"],
+              returnGeometry: true
+            })
+            .then(function(results) {
+              if (results.features.length > 0) {
+                editFeature = results.features[0];
+
+                // display the attributes of selected feature in the form
+                form.feature = editFeature;
+
+                // highlight the feature on the view
+                view.whenLayerView(editFeature.layer).then(function(layerView) {
+                  highlight = layerView.highlight(editFeature);
+                });
+
+                if (
+                  document
+                    .getElementById("update")
+                    .classList.contains("esri-hidden")
+                ) {
+                  document.getElementById("info").classList.add("esri-hidden");
+                  document
+                    .getElementById("update")
+                    .classList.remove("esri-hidden");
+                }
+              }
+            });
+        }
+
+        form.on("submit", function() {
+          if (editFeature) {
+            // Grab updated attributes from the form.
+            const updated = form.getValues();
+
+            // Loop through updated attributes and assign
+            // the updated values to feature attributes.
+            Object.keys(updated).forEach(function(name) {
+              editFeature.attributes[name] = updated[name];
+            });
+
+            // Setup the applyEdits parameter with updates.
+            const edits = {
+              updateFeatures: [editFeature]
+            };
+            applyAttributeUpdates(edits);
+          }
+        });
+
+        // Call FeatureLayer.applyEdits() with specified params.
+        function applyAttributeUpdates(params) {
+          document.getElementById("btnUpdate").style.cursor = "progress";
+          forFeatureForm
+            .applyEdits(params)
+            .then(function(editsResult) {
+              // Get the objectId of the newly added feature.
+              // Call selectFeature function to highlight the new feature.
+              if (editsResult.addFeatureResults.length > 0) {
+                const objectId = editsResult.addFeatureResults[0].objectId;
+                selectFeature(objectId);
+              }
+              document.getElementById("btnUpdate").style.cursor = "pointer";
+            })
+            .catch(function(error) {
+              console.log("===============================================");
+              console.error(
+                "[ applyEdits ] FAILURE: ",
+                error.code,
+                error.name,
+                error.message
+              );
+              console.log("error = ", error);
+              document.getElementById("btnUpdate").style.cursor = "pointer";
+            });
+        }
+
+        document.getElementById("btnUpdate").onclick = function() {
+          // Fires feature form's submit event.
+          form.submit();
+        };
+
+
+
+
+
+
+
+
+
+
+
+
+        // Create the Symbologies on Map
+        var stopSymbol = {
+          type: "simple-marker",
+          style: "cross",
+          size: 15,
+          outline: {
+            width: 4
+          }
+        };
+        var routeSymbol = {
+          type: "simple-line",
+          color: [0, 0, 255, 0.5],
+          width: 5
+        };
+        /*
+        var map = new Map({
+          basemap: "streets",
+          layers: [routeLayer]
+        });*/
+      //  var poi = poiLayer({
+       //   url: "https://my.server.com/arcgis/rest/service/MyElevationService/ImageServer"
+       // });
+        var scene = new WebScene({
+          portalItem: { // autocasts as new PortalItem()
+          //id: "344bad711fca46ab89b3bfb46263de0b"  // ID of the WebScene on arcgis.com
+           // id: "1c7a06421a314ac9b7d0fae22aa367fb"
+            //id:"4c7b7f3d00874482adddfdada771098d" 
+            id: "0614ea1f9dd043e9ba157b9c20d3c538"
+          },
+          layers: [routeLayer]
+        });
+        /*
+        var view = new SceneView({
+          container: "viewDiv",
+          map: scene,
+          center: [-117.195, 34.057],
+          zoom: 14
+        });
+        */
+        var view = new SceneView({
+          map: scene,
+          container: "viewDiv",
+          center: [-118.243683, 34.052235],
+          zoom: 14
+        });
+
+        var addButton={
+          title:"add stop",
+          id:"add stop",
+        }
+
+        const editThisAction = {
+          title: "Edit feature",
+          id: "edit-this",
+          className: "esri-icon-edit"
+        };
+
+        var address = "test location";
+
+        var searchWidget = new Search({
+          view: view,
+          popupTemplate:{
+          title: "hi",
+          actions:[
+              {
+                id:"add stop",
+                title:"Add Stop"
+              }
+            ]
+          }
+        });
+
+        searchWidget.on("select-result", function(event){
+          searchWidget.popupTemplate.title = event.result.name;
+          address = event.result.name;
+        });
+
+
+
+        view.ui.add([searchWidget, "slidesDiv", "directDiv"], {
+            position: "top-right",
+            index: 2
+        });
+        view.ui.add("update", "top-left");
+        view.ui.add("info", {
+          position: "bottom-left",
+          index: 1
+        });
+        document.getElementById("slidesDiv").style.visibility = "visible";
+
+        view.on("click", function(event) {
+          // Unselect any currently selected features
+          unselectFeature();
+          document.getElementById("update").classList.add("esri-hidden");
+    })
+
+        function Stop(earlyArrival, lateArrival, minTime, maxTime, preference){
+          this.earlyArrival = earlyArrival;
+          this.lateArrival = lateArrival;
+          this.minTime = minTime;
+          this.maxTime = maxTime;
+          this.preference = preference;
+        }
+
+
+
+
+
+
+
+
+
+
+
+        function createSlideUI(slide) {
+                  var slideElement = document.createElement("div");
+                  slideElement.id = slide.id;
+                  slideElement.classList.add("slide");
+
+                  var slidesDiv = document.getElementById("slidesDiv");
+                  slidesDiv.appendChild(slideElement);
+
+                  var title = document.createElement("div");
+                  title.innerText = slide.title.text;
+                  slideElement.appendChild(title);
+
+                  var img = new Image();
+                  img.src = slide.thumbnail.url;
+                  img.title = slide.title.text;
+                  slideElement.appendChild(img);
+
+                  slideElement.addEventListener("click", function() {
+                    var slides = document.querySelectorAll(".slide");
+                    Array.from(slides).forEach(function(node) {
+                      node.classList.remove("active");
+                    });
+                    slideElement.classList.add("active");
+                    slide.applyTo(view);
+                  });
+                }
+
+
+        function deleteSlideUI(slide) {
+          var slidesDiv = document.getElementById("slidesDiv");
+          slidesDiv.removeChild(document.getElementById(slide.id));
+        }
+
+        var directDiv = document.getElementById("directDiv");
+        var welcome = document.createElement("div");
+        welcome.innerText = "Your Directions Will Show Up Here";
+        directDiv.appendChild(welcome);
+
+        function createDirectionUI(directions, times, lengths, totalLength, totalTime) {
+          var directDiv = document.getElementById("directDiv");
+          var subs = document.createElement("div");
+          var hours = Math.floor(totalTime/60);
+          var minutes = (Math.round((totalTime%60)*10)/10);
+          subs.innerText = "Total Length: " + (Math.round(totalLength*100)/100) + " miles";
+          directDiv.appendChild(subs);
+          var subs1 = document.createElement("div");
+          subs1.innerText = "Total Drive Time: " + hours + " hours " + minutes + " min";
+          directDiv.appendChild(subs1);
+
+          for (var i = 0; i < directions.length; i++) {
+            var subs = document.createElement("div");
+            subs.innerText = "--------------------";
+            directDiv.appendChild(subs);
+            if (times[i] == 0) {
+              var direction = document.createElement("div");
+              direction.style.fontWeight = 'bold';
+              direction.innerText = directions[i];
+              directDiv.appendChild(direction);
+            } else {
+              var direction = document.createElement("div");
+              direction.innerText = directions[i];
+              var tim = document.createElement("div");
+              tim.innerText = "Time: " + (Math.round(times[i]*100)/100) + " min";
+              var dist = document.createElement("div");
+              dist.innerText = "Dist: " + (Math.round(lengths[i]*100)/100) + " miles";
+              directDiv.appendChild(direction);
+              directDiv.appendChild(tim);
+              directDiv.appendChild(dist);
+            }
+          }
+        }
+
+
+        function deleteDirectionUI() {
+          var directDiv = document.getElementById("directDiv");
+          directDiv.textContent = '';
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // Creating Routing Functions
+        var firstStop, lastStop;
+        var arrStop = [];
+        var counter = 1;
+
+        function addStop(stopPoint) {
+          var stop = stopPoint.feature;
+
+          stop.popupTemplate = {
+          title: address,
+          content: [
+            {
+              type: "fields",
+              fieldInfos: [
+                {
+                  fieldName: "Earliest Arrival"
+                },
+                {
+                  fieldName: "Latest Arrival",
+                },
+                {
+                  fieldName: "Minimum Time"
+                },
+                {
+                  fieldName: "Maximum Time"
+                },
+                {
+                  fieldName: "Preference (1-10)"
+                }
+              ]
+            }
+          ],
+          actions:[
+              {
+                id:"delete stop",
+                title:"Delete Stop"
+              }, editThisAction
+            ]
+          };
+
+          //CHANGE THESE VALUES
+          stop.attributes = {
+            earlyArrival: 1,
+            lateArrival: 2,
+            minTime: 3,
+            maxTime: 4,
+            preference: 5,
+            objectId: counter
+          };
+
+          counter +=1;
+
+          //Assigns color to each stop
+          if (firstStop == null) {
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "green"
+              };
+          } else if (lastStop == null) {
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          } else {
+            lastStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 10,
+              color: "black"
+              };
+            stop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          }
+
+          //reassigns firstStop, lastStop, arrStop
+          routeLayer.add(stop);
+          forFeatureForm.applyEdits({
+            addFeatures: [stop]
+          });
+
+          forFeatureForm.queryFeatures(forFeatureForm.createQuery()).then(function(results){
+  // prints the array of result graphics to the console
+  console.log(results.features);
+});
+
+          if (firstStop == null) {
+            firstStop = stop;
+          } else if (lastStop == null) {
+            lastStop = stop;
+          } else {
+            arrStop.push(lastStop);
+            lastStop = stop
+          }
+
+          //Create Slide
+          Slide.createFrom(view).then(function(slide) {
+                scene.presentation.slides.add(slide);
+                slide.title.text = address;
+                slide.id = address;
+                createSlideUI(slide);
+              });
+        }
+
+
+
+
+        function removeStop(stop) {
+          routeLayer.remove(stop);
+          forFeatureForm.applyEdits({
+            deleteFeatures: [stop]
+          });
+
+          forFeatureForm.queryFeatures(forFeatureForm.createQuery()).then(function(results){
+  // prints the array of result graphics to the console
+  console.log(results.features);
+});
+
+          if (stop == firstStop) {
+            if (arrStop.length == 0 && lastStop == null) {
+              firstStop = null;
+            } else if (arrStop.length == 0) {
+              firstStop = lastStop;
+              lastStop = null;
+            } else {
+              firstStop = arrStop.shift();
+            }
+          } else if (stop == lastStop) {
+            lastStop = arrStop.pop();
+          } else {
+            for (var i = 0; i < arrStop.length; i++) {
+              if (arrStop[i] == stop) {
+                arrStop.splice(i,1);
+              }
+            }
+          }
+
+          if (firstStop != null) {
+            firstStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "green"
+              };
+          }
+
+          if (lastStop != null) {
+            lastStop.symbol = {type: "simple-marker",
+              style: "circle",
+              size: 12,
+              color: "red"
+              };
+          }
+
+          //Delete Slide
+          for (var i = 0; i < scene.presentation.slides.items.length; i++) {
+            if (scene.presentation.slides.items[i].id == stop.popupTemplate.title) {
+              var slide = scene.presentation.slides.items[i];
+              scene.presentation.slides.remove(slide);
+              deleteSlideUI(slide);
+            }
+          }
+        }
+
+
+
+
+
+
+
+        var prev_route = [];
+
+        //solveAlg breaks if you do not define attributes earlyArrival lateArrival!!!
+
+        function solveAlg() {
+          //get rid of previous elements
+          deleteDirectionUI();
+          for (var i = 0; i < prev_route.length; i++) {
+            routeLayer.remove(prev_route[i]);
+          }
+          prev_route = [];
+
+          //Step 1: Create Array of all possible stops used, including firstStop
+          var arrpoints = [];
+          for (var i = 0; i < arrStop.length; i++) {
+            if ((arrStop[i].attributes.lateArrival >= firstStop.attributes.earlyArrival) && (arrStop[i].attributes.earlyArrival <= lastStop.attributes.lateArrival)) {
+              arrpoints.push(arrStop[i]);
+            }
+          }
+
+          arrpoints.push(firstStop);
+
+          //Step 2: Create PQ based off 6 intervals timespans
+          var startpt = firstStop;
+          var endpt;
+          var timelength = (firstStop.attributes.earlyArrival - lastStop.attributes.lateArrival)/6;
+          for (var j = 1; j < 7; i++) {
+            var priorityQueue = [];
+
+            for (var i = 0; i < arrpoints.length; i++) {
+              if ((arrpoints[i].attributes.earlyArrival < (firstStop.attributes.earlyArrival + (j*timelength))) && (arrpoints[i].attributes.lateArrival > (firstStop.attributes.earlyArrival + ((j-1)*timelength))) && (arrpoints[i] != startpt)) {
+                priorityQueue.push(arrpoints[i]);
+                //Step 3: Only use 4 points (not applied, using all points right now)
+              }
+            }
+
+            if (priorityQueue != null) {
+
+
+
+            //find the endpt, the point with the latest arrival time in the priorityQueue
+            endpt = priorityQueue[0];
+            for (var i = 1; i < priorityQueue.length; i++) {
+              if (endpt.attributes.lateArrival < priorityQueue[i].attributes.lateArrival) {
+                endpt = priorityQueue[i];
+              }
+            }
+
+            //Delete the endpt from priorityQueue so we don't use it twice
+            for (var i = 0; i < priorityQueue.length; i++) {
+              if (endpt == priorityQueue[i]) {
+                priorityQueue.splice(i,1);
+              }
+            }
+            //Solve!!
+            solveRoute(startpt, priorityQueue, endpt);
+
+
+            //Get rid of used points from arrpoints except endpt
+            for (var i = arrpoints.length - 1; i >= 0; i--) {
+              if (startpt == arrpoints[i]) {
+                arrpoints.splice(i,1);
+              }
+            }
+            for (var i = arrpoints.length - 1; i >= 0; i--) {
+              for (var j = 0; j < priorityQueue.length; j++) {
+                if (priorityQueue[j] == arrpoints[i]) {
+                  arrpoints.splice(i,1);
+                }
+              }
+            }
+            //reassign startpt
+            startpt = endpt;
+            }
+          }
+
+          //connect the last stop used to the actual last stop
+          var lastconnect = [];
+          solveRoute(startpt, lastconnect, lastStop);
+        }
+
+        function demoAlg() {
+          //get rid of previous elements
+          deleteDirectionUI();
+          for (var i = 0; i < prev_route.length; i++) {
+            routeLayer.remove(prev_route[i]);
+          }
+          prev_route = [];
+
+          var minitsp = []
+          //MAKE SURE YOUR DEMO HAS AT LEAST 4 MIDDLE POINTS
+          for (var i = 0; i < (arrStop.length - 4); i++) {
+            
+          }
+        }
+
+
+
+
+
+
+
+
+
+
+
+        function solveRoute(startpt, priorityQueue, endpt) {
+          //first clear routeParams so no stops
+          routeParams.stops.features = [];
+            routeParams.stops.features.push(startpt);
+            for (var i = 0; i < priorityQueue.length; i++) {
+              routeParams.stops.features.push(priorityQueue[i]);
+            }
+            routeParams.stops.features.push(endpt);
+            routeTask.solve(routeParams).then(showRoute);
+        }
+
+        function showRoute(data) {
+          var routeresult = data.routeResults[0].route;
+          routeresult.symbol = routeSymbol;
+          //comment out the if statement for ALGORITHM
+          if (prev_route != null) {
+            for (var i = 0; i < prev_route.length; i++) {
+              routeLayer.remove(prev_route[i]);
+            }
+            prev_route = [];
+          }
+
+          routeLayer.add(routeresult);
+
+          prev_route.push(routeresult);
+
+          var directions = [];
+          var times = [];
+          var lengths = [];
+          var totalLength;
+          var totalTime;
+
+          for (var i = 0; i < data.routeResults[0].directions.features.length; i++) {
+            directions.push(data.routeResults[0].directions.features[i].attributes.text);
+            times.push(data.routeResults[0].directions.features[i].attributes.time);
+            lengths.push(data.routeResults[0].directions.features[i].attributes.length);
+          }
+          totalLength = data.routeResults[0].directions.totalLength;
+          totalTime = data.routeResults[0].directions.totalDriveTime;
+
+          //Comment out deleteDirectionUI() for ALGORITHM
+          deleteDirectionUI();
+          createDirectionUI(directions, times, lengths, totalLength, totalTime);
+        }
+
+
+
+
+
+
+
+
+
+
+        view.popup.on("trigger-action", function(event)
+        {
+
+             if (event.action.id == "add stop")
+             {
+               addStop(searchWidget.selectedResult);
+             }
+             if (event.action.id == "delete stop")
+             {
+               //console.log(view, event);
+               removeStop(view.popup.selectedFeature);
+             }
+             if (event.action.id === "edit-this") {
+               selectFeature(view.popup.selectedFeature.attributes.objectId);
+             }
+        });
+
+        document.body.addEventListener( 'keyup', function (e) {
+          if ( e.keyCode == 13 ) {
+            // Simulate clicking on the submit button.
+            if (firstStop != null && lastStop!= null) {
+
+              forFeatureForm.queryFeatures(forFeatureForm.createQuery()).then(function(results){
+                var featurearr = [];
+                // prints the array of result graphics to the console
+                featurearr = results.features;
+                console.log(featurearr[1]);
+
+                for (var i = 0; i < featurearr.length; i++) {
+                  console.log(featurearr[i]);
+                  if (firstStop.attributes.objectId == featurearr[i].attributes.objectId){
+                    firstStop.attributes = featurearr[i].attributes;
+                  }
+                  if (lastStop.attributes.objectId == featurearr[i].attributes.objectId){
+                    lastStop.attributes = featurearr[i].attributes;
+                  }
+                }
+                for (var i = 0; i < featurearr.length; i++) {
+                  for (var j = 0; j < arrStop.length; j++) {
+                    if (arrStop[j].attributes.objectId == featurearr[i].attributes.objectId){
+                      arrStop[j].attributes = featurearr[i].attributes;
+                    }
+                  }
+                }
+              });
+
+              console.log(firstStop);
+              console.log(lastStop);
+              solveRoute(firstStop, arrStop, lastStop);
+            } else {
+              for (var i = 0; i < prev_route.length; i++) {
+                routeLayer.remove(prev_route[i]);
+              }
+            }
+          }
+        });
+
+///----------------------------------start to create 3D point Symbology-----------------------
+//----------------------------------------------------------------------------------------------
+        // verticalOffset shifts the symbol vertically
+        var verticalOffset = {
+          screenLength: 40,
+          maxWorldLength: 200,
+          minWorldLength: 35
+        };
+
+        // Function that automatically creates the symbol for the points of interest
+        function getUniqueValueSymbol(name, color) {
+          // The point symbol is visualized with an icon symbol. To clearly see the location of the point
+          // we displace the icon vertically and add a callout line. The line connects the offseted symbol with the location
+          // of the point feature.
+          return {
+            type: "point-3d", // autocasts as new PointSymbol3D()
+            symbolLayers: [
+              {
+                type: "icon", // autocasts as new IconSymbol3DLayer()
+                resource: {
+                  href: name
+                },
+                size: 20,
+                outline: {
+                  color: "white",
+                  size: 2
+                }
+              }
+            ],
+
+            verticalOffset: verticalOffset,
+
+            callout: {
+              type: "line", // autocasts as new LineCallout3D()
+              color: "white",
+              size: 2,
+              border: {
+                color: color
+              }
+            }
+          };
+        }
+
+        var pointsRenderer = {
+          type: "unique-value", // autocasts as new UniqueValueRenderer()
+          field: "cat2",
+          uniqueValueInfos: [
+            {
+              value: "Museums and Aquariums",
+              symbol: getUniqueValueSymbol(
+                "https://developers.arcgis.com/javascript/latest/sample-code/visualization-point-styles/live/Museum.png",
+                "#D13470"
+              )
+            },
+            {
+              value: "Shopping Centers",
+              symbol: getUniqueValueSymbol(
+                "https://developers.arcgis.com/javascript/latest/sample-code/visualization-point-styles/live/Restaurant.png",
+                "#F97C5A"
+              )
+            },
+            {
+              value: "Churches",
+              symbol: getUniqueValueSymbol(
+                "https://developers.arcgis.com/javascript/latest/sample-code/visualization-point-styles/live/Church.png",
+                "#884614"
+              )
+            },
+            {
+              value: "Cultural and Performing Arts Centers",
+              symbol: getUniqueValueSymbol(
+                "https://developers.arcgis.com/javascript/latest/sample-code/visualization-point-styles/live/Hotel.png",
+                "#56B2D6"
+              )
+            },
+            {
+              value: "Parks and Gardens",
+              symbol: getUniqueValueSymbol(
+                "https://developers.arcgis.com/javascript/latest/sample-code/visualization-point-styles/live/Park.png",
+                "#40C2B4"
+              )
+            }
+          ]
+        };
+
+        const featureLayer = new FeatureLayer({
+          url:
+            "https://services.arcgis.com/Wl7Y1m92PbjtJs5n/ArcGIS/rest/services/LA_Points_of_Interest_California/FeatureServer",
+            title: "Touristic attractions",
+          elevationInfo: {
+            // elevation mode that will place points on top of the buildings or other SceneLayer 3D objects
+            mode: "relative-to-scene"
+          },
+          renderer: pointsRenderer,
+          outFields: ["*"],
+          popupTemplate: {
+            title: "{Name}",
+            content: [
+              {
+                type: "fields",
+                fieldInfos: [
+                  {
+                    fieldName: "cat2",
+                    label: "Category"
+                  },
+                  {
+                    fieldName: "addrln1",
+                    label: "Address"
+                  },
+                  {
+                    fieldName: "city",
+                    label: "City"
+                  },
+                  {
+                    fieldName: "phones",
+                    label: "Phone number"
+                  },
+                  {
+                    fieldName: "link",
+                    label: "Link"
+                  }
+                ]
+              }
+            ],
+            actions: [editThisAction]
+          },
+          featureReduction: {
+            type: "selection"
+          },
+          labelingInfo: [
+            {
+              labelExpressionInfo: {
+                value: "{Name}"
+              },
+              symbol: {
+                type: "label-3d", // autocasts as new LabelSymbol3D()
+                symbolLayers: [
+                  {
+                    type: "text", // autocasts as new TextSymbol3DLayer()
+                    material: {
+                      color: "white"
+                    },
+                    // we set a halo on the font to make the labels more visible with any kind of background
+                    halo: {
+                      size: 1,
+                      color: [50, 50, 50]
+                    },
+                    size: 10
+                  }
+                ]
+              }
+            }
+          ]
+        });
+
+        scene.add(featureLayer);
+
+ // add functionality on the controls for selection, perspective, callout lines and relative-to-scene elevation mode
+ document
+          .getElementById("cityStyle")
+          .addEventListener("change", function(event) {
+            if (event.target.id === "declutter") {
+              var type = {
+                type: "selection"
+              };
+              pointsLayer.featureReduction = event.target.checked ? type : null;
+            } else if (event.target.id === "perspective") {
+              pointsLayer.screenSizePerspectiveEnabled = event.target.checked;
+            } else if (event.target.id === "callout") {
+              var renderer = pointsLayer.renderer.clone();
+              renderer.uniqueValueInfos.forEach(function(valueInfo) {
+                valueInfo.symbol.verticalOffset = event.target.checked
+                  ? verticalOffset
+                  : null;
+              });
+              pointsLayer.renderer = renderer;
+            } else if (event.target.id === "relative-to-scene") {
+              var mode = event.target.checked
+                ? "relative-to-scene"
+                : "relative-to-ground";
+              pointsLayer.elevationInfo = {
+                mode: mode
+              };
+            }
+          });
+        view.ui.add(document.getElementById("cityStyle"), "bottom-left");
+
+        var legend = new Legend({
+          view: view
+        });
+
+        view.ui.add(legend, "bottom left");
+
+        const options = {
+          profile: "quad",
+          cap: "round",
+          join: "miter",
+          width: 5,
+          height: 30,
+          color: [200, 200, 200],
+          profileRotation: "all"
+        };
+
+        /* The colors used for the each transit line */
+        const colors = {
+          A: [255, 0, 16],
+          B: [0, 170, 227],
+          C: [248, 150, 29],
+          D: [0, 166, 63],
+          F1: [189, 239, 133],
+          F2: [189, 239, 133]
+        };
+
+        /* Create layer with the transit lines */
+        const transitLayer = new FeatureLayer({
+          url:
+            "http://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/subway_tcl_stations_lines_wgs84/FeatureServer/0",
+          copyright:
+            "Data from <a href='https://data.beta.grandlyon.com/en/datasets/lignes-metro-funiculaire-reseau-transports-commun-lyonnais/info'>Data Grand Lyon - Sytral</a>",
+          elevationInfo: {
+            mode: "relative-to-ground",
+            offset: 10
+          },
+          title: "Transit lines in Lyon",
+          definitionExpression: "sens='Aller'",
+          outFields: ["*"]
+        });
+        webscene.add(transitLayer);
+
+
+        function renderTransitLayer() {
+          const renderer = new UniqueValueRenderer({
+            field: "ligne"
+          });
+
+          for (let property in colors) {
+            if (colors.hasOwnProperty(property)) {
+              renderer.addUniqueValueInfo({
+                value: property,
+                symbol: {
+                  type: "line-3d",
+                  symbolLayers: [
+                    {
+                      type: "path",
+                      profile: options.profile,
+                      material: {
+                        color: colors[property]
+                      },
+                      width: options.width,
+                      height: options.height,
+                      join: options.join,
+                      cap: options.cap,
+                      anchor: "bottom",
+                      profileRotation: options.profileRotation
+                    }
+                  ]
+                }
+              });
+            }
+          }
+
+          transitLayer.renderer = renderer;
+        }
+
+        renderTransitLayer();
+
+        /*************************************************
+         * The rest of the sample adds event listeners
+         * on the input elements in the menu, to modify
+         * the path properties in the options object and
+         * rerender the layer.
+         *************************************************/
+
+        const styleSelect = document.getElementById("style");
+        styleSelect.addEventListener("change", function(event) {
+          const value = event.target.value;
+          switch (value) {
+            case "round-tube":
+              options.profile = "circle";
+              options.height = 30;
+              options.width = 30;
+              break;
+            case "square-tube":
+              options.profile = "quad";
+              options.height = 30;
+              options.width = 30;
+              break;
+            case "wall":
+              options.profile = "quad";
+              options.height = 30;
+              options.width = 5;
+              break;
+            case "strip":
+              options.profile = "quad";
+              options.height = 5;
+              options.width = 30;
+              break;
+          }
+          renderTransitLayer();
+        });
+
+        const capSelect = document.getElementById("cap");
+        capSelect.addEventListener("change", function(event) {
+          options.cap = event.target.value;
+          renderTransitLayer();
+        });
+
+        const joinSelect = document.getElementById("join");
+        joinSelect.addEventListener("change", function(event) {
+          console.log(event.target.value);
+          options.join = event.target.value;
+          renderTransitLayer();
+        });
+
+        const rotationSelect = document.getElementById("profileRotation");
+        rotationSelect.addEventListener("change", function(event) {
+          options.profileRotation = event.target.value;
+          renderTransitLayer();
+        });
+
+        view.ui.add("menu", "top-right");
+      });
+    </script>
+  </head>
+  <body>
+    <div id="viewDiv"></div>
+    <div id="paneDiv" class="esri-widget">
+      <div>
+        <p>
+        </p>
+      </div>
+    </div>
+    <div id="slidesDiv" class="esri-widget"></div>
+    <div id="directDiv"></div>
+
+    <div id="info" class="esri-widget">
+      <h3>Select a feature to begin editing</h3>
+    </div>
+
+    <div id="update" class="esri-widget esri-hidden">
+    <div id="form" class="scroller esri-component"></div>
+    <input
+      type="button"
+      class="esri-button"
+      value="Update Stop Settings"
+      id="btnUpdate"
+    />
+    <div id="viewDiv" class="esri-widget"></div>
+    <div id="cityStyle">
+      <input type="checkbox" id="callout" name="mode" checked />
+      <label for="callout">Set callout lines on icons</label>
+      <input type="checkbox" id="declutter" name="mode" checked />
+      <label for="declutter">Declutter view</label>
+      <input type="checkbox" id="perspective" name="mode" checked />
+      <label for="perspective">Improve icon perspective</label>
+      <input type="checkbox" id="relative-to-scene" name="mode" checked />
+      <label for="relative-to-scene">Align icon to building height</label>
+  </div>
+
+  </body>
+
+</html>
